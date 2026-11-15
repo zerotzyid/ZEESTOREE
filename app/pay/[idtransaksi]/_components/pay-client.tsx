@@ -187,9 +187,9 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
 
   if (phase === 'error') {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
+      <div className="mx-auto flex max-w-3xl flex-col items-center justify-center py-4 sm:py-10 text-center">
         <RefreshCw aria-hidden size={32} className="mb-4 text-content-muted" />
-        <h2 className="text-lg font-semibold text-content">Gagal memuat transaksi</h2>
+        <h2 className="text-lg font-semibold text-content sm:text-xl">Gagal memuat transaksi</h2>
         <p className="text-sm text-content-muted">{error}</p>
         <Button type="button" variant="outline" size="sm" onClick={() => void retry()}>
           Coba lagi
@@ -200,9 +200,9 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
 
   if (phase === 'notfound') {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
+      <div className="mx-auto flex max-w-3xl flex-col items-center justify-center py-4 sm:py-10 text-center">
         <Package aria-hidden size={32} className="mb-4 text-content-muted" />
-        <h2 className="text-lg font-semibold text-content">Transaksi tidak ditemukan</h2>
+        <h2 className="text-lg font-semibold text-content sm:text-xl">Transaksi tidak ditemukan</h2>
         <p className="text-sm text-content-muted">
           ID transaksi tidak valid atau tidak termasuk milik Anda.
         </p>
@@ -228,19 +228,21 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   if (phase === 'paid' && invoice) {
     const isPurchase = isProductPurchase(invoice);
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 py-6">
+      <div className="mx-auto flex max-w-3xl flex-col gap-4 py-4 sm:py-8">
         <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+          <CardContent className="flex flex-col items-center gap-4 py-8 sm:py-10 text-center">
             <CheckCircle2 aria-hidden size={48} className="text-emerald-500" />
-            <h2 className="text-lg font-semibold text-content">Pembayaran Berhasil</h2>
-            <p className="text-sm text-content-muted">
+            <h2 className="text-lg font-semibold text-content sm:text-xl">Pembayaran Berhasil</h2>
+            <p className="text-xs text-content-muted sm:text-sm">
               {formatRupiah(invoice.amount)} telah diproses.
             </p>
 
             {isPurchase && order ? (
               <div className="w-full flex flex-col gap-3">
-                <h3 className="text-sm font-semibold text-content-muted uppercase tracking-wider">Detail Pesanan</h3>
-                <div className="rounded-xl border border-line bg-content/5 p-4">
+                <h3 className="text-xs font-semibold text-content-muted uppercase tracking-wider">
+                  Detail Pesanan
+                </h3>
+                <div className="rounded-xl border border-line bg-content/5 p-4 sm:p-6">
                   <div className="flex justify-between text-sm">
                     <span className="text-content-muted">Produk</span>
                     <span className="font-mono text-content">{order.productName ?? 'Produk'}</span>
@@ -250,15 +252,15 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
                     <Badge variant="default">{order.status ?? 'paid'}</Badge>
                   </div>
                   {order.panelUrl ? (
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <a
                         href={order.panelUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+                        className="btn-accent inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 sm:px-5 text-sm font-medium"
                       >
-                        Akses Panel Server
-                        <ArrowUpRight aria-hidden size={13} />
+                        <ExternalLink aria-hidden size={14} />
+                        Buka Konsol Panel
                       </a>
                     </div>
                   ) : null}
@@ -270,19 +272,27 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
               </p>
             )}
 
-            <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-center">
               <Button asChild>
-                <a href="/dashboard/transactions" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-5 text-sm text-content transition-colors hover:bg-content/5">
+                <a href="/dashboard/transactions" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-4 text-sm sm:px-5 text-content transition-colors hover:bg-content/5">
                   Lihat transaksi
-                  <ArrowUpRight aria-hidden size={15} />
+                  <ArrowUpRight aria-hidden size={13} />
                 </a>
               </Button>
               <Button asChild>
-                <a href="/dashboard/orders" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-5 text-sm text-content transition-colors hover:bg-content/5">
+                <a href="/dashboard/orders" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-4 text-sm sm:px-5 text-content transition-colors hover:bg-content/5">
                   Lihat pesanan
-                  <ArrowUpRight aria-hidden size={15} />
+                  <ArrowUpRight aria-hidden size={13} />
                 </a>
               </Button>
+              {isPurchase && order?.panelUrl ? (
+                <Button asChild>
+                  <a href={order.panelUrl} target="_blank" rel="noopener noreferrer" className="btn-accent inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-4 text-sm sm:px-5 text-white">
+                    <ExternalLink aria-hidden size={14} />
+                    Konsol Panel
+                  </a>
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -292,13 +302,13 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
 
   if (phase === 'expired' && invoice) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
+      <div className="mx-auto flex max-w-3xl flex-col items-center justify-center py-4 sm:py-10 text-center">
         <Clock aria-hidden size={32} className="mb-4 text-content-muted" />
-        <h2 className="text-lg font-semibold text-content">Invoice Kedaluwarsa</h2>
+        <h2 className="text-lg font-semibold text-content sm:text-xl">Invoice Kedaluwarsa</h2>
         <p className="text-sm text-content-muted">
           Waktu pembayaran telah habis. Buat transaksi baru untuk mencoba lagi.
         </p>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-center">
           <Button type="button" variant="outline" size="sm" onClick={() => void retry()}>
             <RefreshCw aria-hidden size={16} />
             Coba lagi
@@ -316,7 +326,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   // phase === 'qr' or 'loading'
   if (!invoice) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 py-10">
+      <div className="mx-auto flex max-w-3xl flex-col gap-4 py-4 sm:py-10">
         <Skeleton className="h-9 w-48" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Skeleton className="h-48 w-full" />
@@ -331,13 +341,13 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   const expiredSoon = showCountdown && remaining !== null && remaining <= 0;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6 py-6">
-      <div className="flex flex-col gap-1">
-        <p className="label-mono">
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 py-4 sm:py-6">
+      <div className="flex flex-col gap-1.5 text-center sm:text-left">
+        <p className="label-mono text-xs sm:text-sm">
           {isPurchase ? 'Pembelian Produk' : 'Pembayaran'}
         </p>
-        <h1 className="text-2xl font-semibold text-content">Bayar Sekarang</h1>
-        <p className="text-sm text-content-muted">
+        <h1 className="text-xl font-semibold text-content sm:text-2xl">Bayar Sekarang</h1>
+        <p className="text-xs text-content-muted sm:text-sm">
           ID transaksi: <span className="font-mono text-content">{invoice.invoiceId}</span>
         </p>
       </div>
@@ -367,7 +377,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
               <img
                 src={invoice.qrisImage}
                 alt="Kode QRIS pembayaran"
-                className="w-full max-w-[340px] rounded-2xl border border-line bg-white p-2 shadow-sm"
+                className="w-full max-w-[320px] rounded-2xl border border-line bg-white p-2 shadow-sm"
               />
             ) : null}
           </div>
@@ -383,10 +393,10 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
               href={invoice.paymentLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-line px-4 text-sm text-accent hover:bg-content/5"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-line px-4 sm:px-5 text-sm text-accent hover:bg-content/5"
             >
               Buka Tautan Pembayaran
-              <ArrowUpRight aria-hidden size={15} />
+              <ArrowUpRight aria-hidden size={14} />
             </a>
           ) : null}
 
@@ -435,9 +445,9 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
         <Button asChild>
-          <a href="/dashboard/orders" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-5 text-sm text-content transition-colors hover:bg-content/5">
+          <a href="/dashboard/orders" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-4 sm:px-5 text-sm text-content transition-colors hover:bg-content/5">
             Lihat Riwayat Pesanan
-            <ArrowUpRight aria-hidden size={15} />
+            <ArrowUpRight aria-hidden size={13} />
           </a>
         </Button>
         <Button asChild>

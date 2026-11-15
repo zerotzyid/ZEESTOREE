@@ -79,6 +79,7 @@ type ProvisionForm = {
   databases: string;
   allocations: string;
   backups: string;
+  durationDays: string;
 };
 
 const EMPTY_PROVISION: ProvisionForm = {
@@ -97,6 +98,7 @@ const EMPTY_PROVISION: ProvisionForm = {
   databases: '0',
   allocations: '1',
   backups: '0',
+  durationDays: '30',
 };
 
 type ResellerForm = { productId: string; variantId: string };
@@ -272,6 +274,7 @@ export function ProductsClient() {
             databases: String(p.databases ?? 0),
             allocations: String(p.allocations ?? 1),
             backups: String(p.backups ?? 0),
+            durationDays: p.durationDays != null ? String(p.durationDays) : '30',
           }
         : EMPTY_PROVISION
     );
@@ -343,6 +346,7 @@ export function ProductsClient() {
         databases: num(provision.databases) ?? 0,
         allocations: num(provision.allocations) ?? 1,
         backups: num(provision.backups) ?? 0,
+        durationDays: num(provision.durationDays) ?? 30,
       },
     };
   };
@@ -1072,6 +1076,22 @@ export function ProductsClient() {
                           }
                           inputMode="numeric"
                         />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="prov-duration">Kadaluarsa (hari)</Label>
+                        <Input
+                          id="prov-duration"
+                          value={provision.durationDays}
+                          onChange={(e) =>
+                            setProvision((p) => ({ ...p, durationDays: e.target.value }))
+                          }
+                          inputMode="numeric"
+                          placeholder="30"
+                        />
+                        <p className="text-xs text-content-faint">
+                          Server akan dihapus otomatis setelah hari ini jika tidak diperpanjang.
+                        </p>
                       </div>
                     </div>
 
