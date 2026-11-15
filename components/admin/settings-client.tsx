@@ -34,6 +34,7 @@ const MENU_KEYS = [
   'nokos',
   'login',
   'register',
+  'donation',
 ] as const;
 
 const TITLE_KEYS = ['home', 'login', 'register', 'dashboard', 'maintenance', 'notFound'] as const;
@@ -59,6 +60,7 @@ const GROUP_LABELS: Record<string, string> = {
   nokos: 'Nomor Virtual',
   login: 'Masuk',
   register: 'Daftar',
+  donation: 'Donasi',
   emptyProducts: 'Kosong: produk',
   emptyOrders: 'Kosong: pesanan',
   emptyTransactions: 'Kosong: transaksi',
@@ -235,6 +237,8 @@ export function SettingsClient({ initial }: Props) {
           <TabsTrigger value="operational">Operasional</TabsTrigger>
           <TabsTrigger value="systemTexts">Teks sistem</TabsTrigger>
           <TabsTrigger value="integrations">Integrasi</TabsTrigger>
+          <TabsTrigger value="donation">Donasi</TabsTrigger>
+          <TabsTrigger value="branding">Branding</TabsTrigger>
         </TabsList>
 
         {/* IDENTITAS */}
@@ -719,6 +723,157 @@ export function SettingsClient({ initial }: Props) {
             </fieldset>
 
             <SaveButton section="integrations" saving={saving} onClick={(s) => void save(s)} />
+          </div>
+        </TabsContent>
+
+        {/* DONASI */}
+        <TabsContent value="donation">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-line p-4">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="donation-enabled">Aktifkan halaman donasi</Label>
+                <p className="text-xs text-content-faint">Bila nonaktif, halaman donasi tidak dapat diakses pengunjung.</p>
+              </div>
+              <Switch
+                id="donation-enabled"
+                checked={draft.donation?.enabled ?? false}
+                onCheckedChange={(checked) => setField('donation', 'enabled', checked)}
+              />
+            </div>
+
+            <TextField
+              id="donation-title"
+              label="Judul halaman"
+              value={draft.donation?.title ?? ''}
+              onChange={(v) => setField('donation', 'title', v)}
+              maxLength={60}
+            />
+            <AreaField
+              id="donation-description"
+              label="Deskripsi"
+              value={draft.donation?.description ?? ''}
+              onChange={(v) => setField('donation', 'description', v)}
+              maxLength={300}
+            />
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                id="donation-min"
+                label="Minimal donasi (Rp)"
+                value={String(draft.donation?.minAmount ?? 5000)}
+                onChange={(v) => setField('donation', 'minAmount', Number(v) || 0)}
+                maxLength={12}
+                hint="0 tanpa batas."
+              />
+              <TextField
+                id="donation-max"
+                label="Maksimal donasi (Rp)"
+                value={String(draft.donation?.maxAmount ?? 10000000)}
+                onChange={(v) => setField('donation', 'maxAmount', Number(v) || 0)}
+                maxLength={12}
+                hint="0 tanpa batas."
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-line p-4">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="donation-custom">Izinkan nominal custom</Label>
+                <p className="text-xs text-content-faint">Bila aktif, donatur bisa memasukkan nominal bebas.</p>
+              </div>
+              <Switch
+                id="donation-custom"
+                checked={draft.donation?.showCustomAmount ?? true}
+                onCheckedChange={(checked) => setField('donation', 'showCustomAmount', checked)}
+              />
+            </div>
+
+            <fieldset className="flex flex-col gap-3 rounded-2xl border border-line p-4">
+              <legend className="label-mono mb-2">Nominal yang disarankan</legend>
+              <p className="text-xs text-content-faint">Pisahkan dengan koma, contoh: 10000, 25000, 50000, 100000</p>
+              <Textarea
+                id="donation-suggested"
+                value={(draft.donation?.suggestedAmounts ?? []).join(', ')}
+                onChange={(e) => {
+                  const amounts = e.target.value.split(',').map(s => Number(s.trim())).filter(n => n > 0);
+                  setSection('donation', { ...draft.donation, suggestedAmounts: amounts } as Settings['donation']);
+                }}
+                rows={2}
+                placeholder="10000, 25000, 50000, 100000"
+              />
+            </fieldset>
+
+            <AssetField
+              name="branding/donationQrLogo"
+              label="Logo di QRIS Donasi (opsional)"
+              kind="donationQrLogo"
+              hint="Logo website akan ditempel di tengah QRIS. Format PNG transparan, maks 512x512px."
+            />
+
+            <PreviewBox title="Pratinjau donasi">
+              <div className="flex flex-col gap-2">
+                <p className="text-lg font-semibold text-content">{draft.donation?.title || 'Dukung Kami'}</p>
+                <p className="text-sm text-content-muted">{draft.donation?.description || 'Deskripsi donasi.'}</p>
+                <div className="flex flex-wrap gap-2">
+                  {(draft.donation?.suggestedAmounts ?? []).slice(0, 4).map((amt, i) => (
+                    <span key={i} className="glass rounded-full px-3 py-1 text-xs text-content-muted">
+                      Rp {amt.toLocaleString('id-ID')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </PreviewBox>
+
+            <SaveButton section="donation" saving={saving} onClick={(s) => void save(s)} />
+          </div>
+        </TabsContent>
+
+        {/* BRANDING */}
+        <TabsContent value="branding">
+          <div className="flex flex-col gap-4">
+            <AssetField
+              name="branding/logo"
+              label="Logo utama"
+              kind="logo"
+              hint="Tampil di header dan footer. Bila kosong, nama toko ditampilkan sebagai teks. Format PNG/SVG, maks 512x512px."
+            />
+            <AssetField
+              name="branding/favicon"
+              label="Favicon"
+              kind="favicon"
+              hint="Ikon tab browser. Format ICO/PNG, 32x32 atau 16x16px."
+            />
+            <AssetField
+              name="branding/banner"
+              label="Banner beranda"
+              kind="banner"
+              hint="Tampil di bawah tombol beranda. Format PNG/JPG, rasio 16:9, maks 1920px lebar."
+            />
+            <AssetField
+              name="branding/donationQrLogo"
+              label="Logo QRIS Donasi"
+              kind="donationQrLogo"
+              hint="Logo kecil di tengah QRIS halaman donasi. Format PNG transparan, maks 128x128px."
+            />
+
+            <PreviewBox title="Pratinjau branding">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  {draft.branding?.logo ? (
+                    <img src={draft.branding.logo} alt="Logo" className="h-12 w-auto rounded" />
+                  ) : (
+                    <span className="text-sm text-content-faint">Logo belum diunggah</span>
+                  )}
+                  <span className="text-sm font-semibold text-content">{draft.identity.storeName || 'Nama toko'}</span>
+                </div>
+                {draft.branding?.banner ? (
+                  <img src={draft.branding.banner} alt="Banner" className="rounded-xl max-w-full h-auto" />
+                ) : (
+                  <p className="text-xs text-content-faint">Banner belum diunggah</p>
+                )}
+              </div>
+            </PreviewBox>
+
+            <SaveButton section="branding" saving={saving} onClick={(s) => void save(s)} />
           </div>
         </TabsContent>
       </Tabs>

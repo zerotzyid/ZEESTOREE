@@ -66,3 +66,30 @@ export type CategoryDoc = {
   active: boolean;
   createdAt: number;
 };
+
+/** Voucher System */
+export type VoucherDoc = {
+  code: string;           // Kode voucher (uppercase, alphanumeric)
+  type: 'balance' | 'discount' | 'product'; // Jenis voucher
+  value: number;          // Nominal (balance) atau persen (discount) atau productId (product)
+  productId?: string;     // Untuk tipe 'product': produk yang gratis/diskon
+  discountPercent?: number; // Untuk tipe 'discount': persen diskon (1-100)
+  maxUses: number;        // Maksimal penggunaan total
+  usedCount: number;      // Sudah digunakan berapa kali
+  maxPerUser: number;     // Maks per user (default 1)
+  minPurchase?: number;   // Minimal belanja untuk bisa pakai voucher
+  expiresAt?: number;     // Timestamp expired (null = tidak expired)
+  active: boolean;        // Aktif/tidak
+  createdAt: number;
+  createdBy: string;      // Admin yang buat
+  description?: string;   // Deskripsi internal admin
+};
+
+export type VoucherValidationResult = {
+  valid: boolean;
+  voucher?: VoucherDoc;
+  error?: string;
+  discountAmount?: number; // Jumlah potongan harga
+  finalPrice?: number;     // Harga akhir setelah voucher
+  freeProduct?: boolean;   // Apakah produk gratis (tipe product)
+};

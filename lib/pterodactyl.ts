@@ -299,3 +299,114 @@ export async function buildServerArgs(
   console.error('BUILD_ARGS_DEBUG:', JSON.stringify({ eggId: provision.eggId, dockerImage, startup, environment }, null, 2));
   return { dockerImage, startup, environment };
 }
+
+/**
+ * Application API: List semua server di panel.
+ * GET /api/application/servers
+ */
+export async function listApplicationServers(
+  panel: PteroPanel,
+  options: { page?: number; perPage?: number } = {}
+): Promise<Array<{ id: number; uuid: string; name: string; node: number; state: string; limits: { memory: number; disk: number; cpu: number }; user: number }>> {
+  const { page = 1, perPage = 100 } = options;
+  const res = await pteroFetch<{ data: Array<{ attributes: any }>; meta?: { pagination?: { total: number } } }>(
+    panel,
+    `/api/application/servers?page=${page}&per_page=${perPage}&include=user,node,allocation,egg`
+  );
+  return res.data.map((d) => {
+    const a = d.attributes;
+    return {
+      id: a.id,
+      uuid: a.uuid,
+      name: a.name,
+      node: a.relationships?.node?.data?.attributes?.id ?? a.node,
+      state: a.current_state ?? a.state,
+      limits: a.limits ?? { memory: 0, disk: 0, cpu: 0 },
+      user: a.relationships?.user?.data?.attributes?.id ?? a.user,
+    };
+  });
+}
+
+/**
+ * Application API: Get detail server.
+ * GET /api/application/servers/{id}
+ */
+export async function getApplicationServer(
+  panel: PteroPanel,
+  serverId: number
+): Promise<{ id: number; uuid: string; name: string; state: string; limits: any; user: number; node: number; egg: number } | null> {
+  try {
+    const res = await pteroFetch<{ attributes: any }>(
+      panel,
+      `/api/application/servers/${serverId}?include=user,node,allocation,egg`
+    );
+    const a = res.attributes;
+    return {
+      id: a.id,
+      uuid: a.uuid,
+      name: a.name,
+      state: a.current_state ?? a.state,
+      limits: a.limits,
+      user: a.relationships?.user?.data?.attributes?.id ?? a.user,
+      node: a.relationships?.node?.data?.attributes?.id ?? a.node,
+      egg: a.relationships?.egg?.data?.attributes?.id ?? a.egg,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Application API: Suspend server (stop + disable).
+ * POST /api/application/servers/{id}/suspend
+ */
+export async function suspendApplicationServer(panel: PteroPanel, serverId: number): Promise<void> {
+  await pteroFetch(panel, `/api/application/servers/${serverId}/suspend`, { method: 'POST' });
+}
+
+/**
+ * Application API: Unsuspend server (enable).
+ * POST /api/application/servers/{id}/unsuspend
+ */
+export async function unsuspendApplicationServer(panel: PteroPanel, serverId: number): Promise<void> {
+  await pteroFetch(panel, `/api/application/servers/${serverId}/unsuspend`, { method: 'POST' });
+}
+
+/**
+ * Application API: Delete server permanently.
+ * DELETE /api/application/servers/{id}
+ */
+export async function deleteApplicationServer(panel: PteroPanel, serverId: number, force = true): Promise<void> {
+  await pteroFetch(panel, `/api/application/servers/${serverId}?force=${force}`, { method: 'DELETE' });
+}
+
+/**
+ * Application API: Reinstall server.
+ * POST /api/application/servers/{id}/reinstall
+ */
+export async function reinstallApplicationServer(panel: PteroPanel, serverId: number): Promise<void> {
+  await pteroFetch(panel, `/api/application/servers/${serverId}/reinstall`, { method: 'POST' });
+}
+
+/**
+ * Application API: Change server owner password.
+ * POST /api/application/users/{id}/password
+ */
+export async function changeUserPassword(panel: PteroPanel, userId: number, password: string): Promise<void> {
+  await pteroFetch(panel, `/api/application/users/${userId}/password`, {
+    method: 'POST',
+    json: { password },
+  });
+}
+
+/**
+ * Application API: Send command to server console.
+ * POST /api/application/servers/{id}/command
+ */
+export async function sendApplicationCommand(panel: PteroPanel, serverId: number, command: string): Promise<void> {
+  await pteroFetch(panel, `/api/application/servers/${serverId}/command`, {
+    method: 'POST',
+    json: { command },
+  });
+}
+}

@@ -53,6 +53,23 @@ export type Settings = {
     axmisuBaseUrl: string;
     axmisuApiKey: string;
   };
+  donation: {
+    enabled: boolean;
+    title: string;
+    description: string;
+    suggestedAmounts: number[];
+    showCustomAmount: boolean;
+    minAmount: number;
+    maxAmount: number;
+    qrImage: string;
+    qrAlt: string;
+  };
+  branding: {
+    logo: string;
+    favicon: string;
+    banner: string;
+    donationQrLogo: string;
+  };
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -103,6 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
       nokos: 'Nomor Virtual',
       login: 'Masuk',
       register: 'Daftar',
+      donation: 'Donasi',
     },
     titles: {
       home: '',
@@ -126,5 +144,22 @@ export const DEFAULT_SETTINGS: Settings = {
     resellerApiKey: '',
     axmisuBaseUrl: 'https://api.axmisu.com/v1',
     axmisuApiKey: '',
+  },
+  donation: {
+    enabled: false,
+    title: 'Dukung Kami',
+    description: 'Donasi Anda membantu menjaga layanan ini tetap berjalan dan dikembangkan. Setiap kontribusi sangat dihargai.',
+    suggestedAmounts: [10000, 25000, 50000, 100000],
+    showCustomAmount: true,
+    minAmount: 5000,
+    maxAmount: 10000000,
+    qrImage: '',
+    qrAlt: 'QRIS Donasi',
+  },
+  branding: {
+    logo: '',
+    favicon: '',
+    banner: '',
+    donationQrLogo: '',
   },
 };

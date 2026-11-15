@@ -1,7 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Plus, Server, Trash2, Zap } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  Server,
+  Trash2,
+  Zap,
+  List,
+  PauseCircle,
+  PlayCircle,
+  RotateCw,
+  Trash,
+  Key,
+  Users,
+  Settings,
+  Eye,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +34,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { FadeIn } from '@/components/anim';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type AdminPanel = {
   id: string;
@@ -31,6 +48,16 @@ type AdminPanel = {
 };
 
 type FormState = { name: string; baseUrl: string; apiKey: string; capiKey: string; active: boolean };
+
+type ServerInfo = {
+  id: number;
+  uuid: string;
+  name: string;
+  node: number;
+  state: string;
+  limits: { memory: number; disk: number; cpu: number };
+  user: number;
+};
 
 const EMPTY_FORM: FormState = { name: '', baseUrl: '', apiKey: '', capiKey: '', active: true };
 
@@ -49,6 +76,14 @@ export function PanelsClient() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+
+  // Server management
+  const [serverDialogOpen, setServerDialogOpen] = useState(false);
+  const [selectedPanel, setSelectedPanel] = useState<AdminPanel | null>(null);
+  const [servers, setServers] = useState<ServerInfo[]>([]);
+  const [serversLoading, setServersLoading] = useState(false);
+  const [serversError, setServersError] = useState<string | null>(null);
+  const [serverActionBusy, setServerActionBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,6 +194,50 @@ export function PanelsClient() {
     }
   };
 
+  // Server management
+  const openServers = async (panel: AdminPanel) => {
+    setSelectedPanel(panel);
+    setServerDialogOpen(true);
+    await loadServers(panel.id);
+  };
+
+  const loadServers = async (panelId: string) => {
+    setServersLoading(true);
+    setServersError(null);
+    try {
+      const res = await fetch(`/api/admin/panels/${panelId}/servers?action=list&perPage=100`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(await readError(res));
+      const data = (await res.json()) as { servers?: ServerInfo[] };
+      setServers(data.servers ?? []);
+    } catch (err) {
+      setServersError(err instanceof Error ? err.message : 'Gagal memuat server.');
+    } finally {
+      setServersLoading(false);
+    }
+  };
+
+  const serverAction = async (serverId: number, action: 'suspend' | 'unsuspend' | 'delete' | 'reinstall') => {
+    if (!selectedPanel) return;
+    if (action === 'delete' && !window.confirm('Hapus server PERMANEN? Tindakan ini tidak bisa dibatalkan.')) return;
+    if (action === 'reinstall' && !window.confirm('Reinstall server? SEMUA DATA AKAN HILANG.')) return;
+
+    setServerActionBusy(serverId);
+    try {
+      const res = await fetch(`/api/admin/panels/${selectedPanel.id}/servers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, serverId }),
+      });
+      if (!res.ok) throw new Error(await readError(res));
+      toast.success(`Server berhasil ${action === 'suspend' ? 'disuspend' : action === 'unsuspend' ? 'diaktifkan' : action === 'delete' ? 'dihapus' : 'reinstall dimulai'}.`);
+      await loadServers(selectedPanel.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menjalankan aksi.');
+    } finally {
+      setServerActionBusy(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
@@ -216,7 +295,7 @@ export function PanelsClient() {
             <FadeIn key={panel.id} delay={index * 0.05}>
               <div className="glass flex h-full flex-col gap-3 rounded-2xl p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 font-medium text-content">
                       <Server aria-hidden size={15} className="shrink-0 text-accent" />
                       <span className="truncate">{panel.name}</span>
@@ -230,8 +309,19 @@ export function PanelsClient() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={panel.hasKey ? 'default' : 'warning'}>
-                    {panel.hasKey ? 'API key tersimpan' : 'API key belum diatur'}
+                    {panel.hasKey ? 'App API key tersimpan' : 'App API key belum diatur'}
                   </Badge>
+                  {panel.hasCapiKey ? (
+                    <Badge variant="default">
+                      <Key aria-hidden size={11} className="mr-1" />
+                      Client API key tersimpan
+                    </Badge>
+                  ) : (
+                    <Badge variant="warning">
+                      <Key aria-hidden size={11} className="mr-1" />
+                      Client API key belum diatur
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-line/50 pt-3">
@@ -248,6 +338,16 @@ export function PanelsClient() {
                       <Zap aria-hidden size={14} />
                     )}
                     Uji koneksi
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void openServers(panel)}
+                    disabled={!panel.hasKey || serversLoading}
+                  >
+                    <List aria-hidden size={14} className="mr-1" />
+                    Kelola Server
                   </Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => openEdit(panel)}>
                     Edit
@@ -268,6 +368,7 @@ export function PanelsClient() {
         </div>
       )}
 
+      {/* Panel CRUD Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -325,7 +426,7 @@ export function PanelsClient() {
                 autoComplete="off"
               />
               <p className="text-xs text-content-faint">
-                Dipakai pelanggan untuk start/stop, console &amp; file. Harus dari akun root admin.
+                Dipakai pelanggan untuk start/stop, console & file. Harus dari akun root admin.
               </p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-3">
@@ -347,8 +448,114 @@ export function PanelsClient() {
                 {saving ? <Loader2 aria-hidden size={16} className="animate-spin" /> : null}
                 Simpan
               </Button>
-            </DialogFooter>
-          </form>
+            </DialogFooter          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Server Management Dialog */}
+      <Dialog open={serverDialogOpen} onOpenChange={setServerDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Server aria-hidden size={18} className="text-accent" />
+              Kelola Server — {selectedPanel?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Daftar server di panel ini. Gunakan Application API key untuk aksi suspend/hapus/reinstall.
+            </DialogDescription>
+          </DialogHeader>
+
+          {serversLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            </div>
+          ) : serversError ? (
+            <EmptyState
+              icon={Server}
+              title="Gagal memuat server"
+              description={serversError}
+              action={<Button variant="outline" size="sm" onClick={() => selectedPanel && loadServers(selectedPanel.id)}>Coba lagi</Button>}
+            />
+          ) : servers.length === 0 ? (
+            <EmptyState
+              icon={Server}
+              title="Tidak ada server"
+              description="Panel ini belum memiliki server, atau Application API key tidak memiliki akses."
+            />
+          ) : (
+            <div className="flex flex-col gap-4 max-h-[60vh] overflow-auto">
+              <div className="rounded-lg border border-line divide-y divide-line overflow-hidden">
+                {servers.map((server) => (
+                  <div key={server.id} className="flex items-center justify-between px-4 py-3 hover:bg-content/3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                        <Server aria-hidden size={16} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-content truncate">{server.name}</p>
+                        <p className="flex items-center gap-2 text-xs text-content-muted">
+                          <span className="font-mono">ID: {server.id}</span>
+                          <span>·</span>
+                          <span>Node: {server.node}</span>
+                          <span>·</span>
+                          <Badge variant={server.state === 'running' ? 'success' : server.state === 'offline' ? 'danger' : 'default'}>
+                            {server.state}
+                          </Badge>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {server.state === 'running' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={serverActionBusy === server.id}
+                          onClick={() => void serverAction(server.id, 'suspend')}
+                        >
+                          <PauseCircle aria-hidden size={13} className="mr-1" />
+                          Suspend
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={serverActionBusy === server.id}
+                          onClick={() => void serverAction(server.id, 'unsuspend')}
+                        >
+                          <PlayCircle aria-hidden size={13} className="mr-1" />
+                          Aktifkan
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={serverActionBusy === server.id}
+                        onClick={() => void serverAction(server.id, 'reinstall')}
+                      >
+                        <RotateCw aria-hidden size={13} className="mr-1" />
+                        Reinstall
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-400"
+                        disabled={serverActionBusy === server.id}
+                        onClick={() => void serverAction(server.id, 'delete')}
+                      >
+                        <Trash aria-hidden size={13} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setServerDialogOpen(false)}>
+              Tutup
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -23,6 +23,8 @@ const checkoutSchema = z.object({
   productId: z.string().trim().min(1).max(60),
   customerName: z.string().trim().min(2).max(60).optional(),
   customerPhone: z.string().trim().min(8).max(20).optional(),
+  voucherCode: z.string().trim().max(20).optional(),
+  paymentMethod: z.enum(['saldo', 'qris', 'voucher']).optional(), // saldo = pakai saldo, qris = bayar langsung via QRIS, voucher = redeem voucher balance
 });
 
 type Buyer = {
@@ -91,6 +93,34 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
+    const paymentMethod = parsed.data.paymentMethod ?? 'saldo';
+    const voucherCode = parsed.data.voucherCode?.toUpperCase().trim();
+    
+    let finalPrice = price;
+    let voucherData: { valid: boolean; voucher?: any; discountAmount?: number; finalPrice?: number; freeProduct?: boolean; error?: string } | null = null;
+    
+    // Validasi voucher jika ada
+    if (voucherCode) {
+      const voucherRes = await fetch(`${new URL(request.url).origin}/api/user/vouchers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: voucherCode, productId: parsed.data.productId, amount: price }),
+      });
+      voucherData = await voucherRes.json();
+      
+      if (!voucherData.valid) {
+        await remove(`orders/${orderId}`);
+        return Response.json({ error: voucherData.error ?? 'Voucher tidak valid.' }, { status: 400 });
+      }
+      
+      if (voucherData.freeProduct) {
+        finalPrice = 0;
+      } else if (voucherData.discountAmount !== undefined) {
+        finalPrice = Math.max(0, price - (voucherData.discountAmount ?? 0));
+      }
+      // Untuk voucher type 'balance', finalPrice tetap price (saldo ditambah via redeem terpisah)
+    }
+
     // 1. Order pending (belum memotong saldo apa pun).
     const now = Date.now();
     const orderId = await push('orders', {
@@ -98,8 +128,11 @@ export async function POST(request: Request): Promise<Response> {
       productId: parsed.data.productId,
       productName: product.name,
       price,
+      finalPrice,
       kind: product.kind,
       status: 'pending',
+      voucherCode: voucherCode || null,
+      paymentMethod,
       createdAt: now,
       updatedAt: now,
       failReason: null,
@@ -108,29 +141,63 @@ export async function POST(request: Request): Promise<Response> {
       completedAt: null,
     } as unknown as Json);
 
-    // 2. Potong saldo dengan ETag retry.
+    // 2. Handle payment berdasarkan method
     let newSaldo: number | null = null;
-    let insufficient = false;
-    for (let attempt = 0; attempt < 5 && newSaldo === null; attempt++) {
-      const read = await getWithEtag<{ saldo?: number }>(`users/${userKey}`);
-      const current = typeof read.value?.saldo === 'number' ? read.value.saldo : 0;
-      if (current < price) {
-        insufficient = true;
-        break;
+    let invoiceId: string | null = null;
+    
+    if (paymentMethod === 'saldo' || paymentMethod === 'voucher') {
+      // Pakai saldo (setelah voucher discount jika ada)
+      const amountToDeduct = finalPrice;
+      
+      if (amountToDeduct > 0) {
+        let insufficient = false;
+        for (let attempt = 0; attempt < 5 && newSaldo === null; attempt++) {
+          const read = await getWithEtag<{ saldo?: number }>(`users/${userKey}`);
+          const current = typeof read.value?.saldo === 'number' ? read.value.saldo : 0;
+          if (current < amountToDeduct) {
+            insufficient = true;
+            break;
+          }
+          const put = await setIfMatch(
+            `users/${userKey}`,
+            { ...(read.value as Record<string, unknown>), saldo: current - amountToDeduct },
+            read.etag
+          );
+          if (put.ok) newSaldo = current - amountToDeduct;
+        }
+        if (newSaldo === null) {
+          await remove(`orders/${orderId}`);
+          if (insufficient) {
+            return Response.json({ error: 'Saldo tidak cukup. Silakan deposit dulu.' }, { status: 400 });
+          }
+          return Response.json({ error: 'Gagal mengunci saldo. Coba lagi.' }, { status: 500 });
+        }
+      } else {
+        // Gratis (voucher product 100% off)
+        newSaldo = buyer.saldo;
       }
-      const put = await setIfMatch(
-        `users/${userKey}`,
-        { ...(read.value as Record<string, unknown>), saldo: current - price },
-        read.etag
-      );
-      if (put.ok) newSaldo = current - price;
-    }
-    if (newSaldo === null) {
-      await remove(`orders/${orderId}`);
-      if (insufficient) {
-        return Response.json({ error: 'Saldo tidak cukup. Silakan deposit dulu.' }, { status: 400 });
-      }
-      return Response.json({ error: 'Gagal mengunci saldo. Coba lagi.' }, { status: 500 });
+    } else if (paymentMethod === 'qris') {
+      // Bayar langsung via QRIS (tidak potong saldo)
+      // Buat invoice Pixpayz
+      const { createDepositInvoice } = await import('@/lib/invoice-processing');
+      const invoice = await createDepositInvoice(userKey, finalPrice);
+      invoiceId = invoice.invoiceId;
+      await update('/', {
+        [`orders/${orderId}/invoiceId`]: invoiceId,
+      } as Record<string, Json>);
+      
+      // Return QRIS untuk dibayar user
+      return Response.json({
+        ok: true,
+        orderId,
+        status: 'pending_payment',
+        paymentMethod: 'qris',
+        qrisImage: invoice.qrisImage,
+        paymentLink: invoice.paymentLink,
+        expiredAt: invoice.expiredAt,
+        total: invoice.total,
+        message: 'Silakan bayar via QRIS. Status akan update otomatis setelah pembayaran.',
+      });
     }
 
     // 3. Tandai paid + catat transaksi (satu PATCH atomik).
@@ -141,13 +208,21 @@ export async function POST(request: Request): Promise<Response> {
       [`transactions/checkout_${orderId}`]: {
         userId: userKey,
         type: 'checkout',
-        amount: -price,
-        balanceAfter: newSaldo,
-        note: `Checkout ${product.name}`,
+        amount: -finalPrice,
+        balanceAfter: newSaldo ?? buyer.saldo,
+        note: `Checkout ${product.name}${voucherCode ? ` (voucher: ${voucherCode})` : ''}`,
         orderId,
         createdAt: Date.now(),
       },
     } as Record<string, Json>);
+
+    // Apply voucher usage jika ada
+    if (voucherData?.voucher && voucherData.voucher.type !== 'balance') {
+      await update('/', {
+        [`vouchers/${voucherCode}/usedCount`]: voucherData.voucher.usedCount + 1,
+        [`voucher_usage/${voucherCode}/${userKey}`]: (voucherData.voucher.usedCount ?? 0) + 1,
+      } as Record<string, Json>);
+    }
 
     // 4. Produk panel → provisioning Pterodactyl; gagal = refund otomatis.
     if (product.kind === 'panel') {
@@ -166,6 +241,13 @@ export async function POST(request: Request): Promise<Response> {
       message: 'Pesanan dibuat dan saldo terpotong. Menunggu pemenuhan oleh admin.',
     });
   } catch (error) {
+    // Refund jika saldo sudah terpotong
+    if (newSaldo !== null) {
+      await update('/', {
+        [`users/${userKey}/saldo`]: newSaldo,
+      } as Record<string, Json>);
+      await writeLog({ actor: userKey, action: 'checkout.refund', detail: `Saldo dikembalikan ${newSaldo}` });
+    }
     const message = error instanceof Error ? error.message : 'Checkout gagal.';
     await writeLog({ actor: userKey, action: 'checkout.error', detail: message.slice(0, 200) });
     return Response.json({ error: message }, { status: 500 });
