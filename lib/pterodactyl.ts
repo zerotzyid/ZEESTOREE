@@ -198,7 +198,11 @@ export function generatePanelPassword(): string {
 type EggVariable = {
   attributes?: { env_variable?: string; default_value?: unknown };
 };
-type EggAttrs = { docker_image?: string; startup?: string };
+type EggAttrs = {
+  docker_image?: string;
+  startup?: string;
+  relationships?: { variables?: { data?: EggVariable[] } };
+};
 type EggItem = { attributes?: EggAttrs; relationships?: { variables?: { data?: EggVariable[] } } };
 
 /**
@@ -225,11 +229,13 @@ export async function getEggWithVariables(
   const item = root.data?.[0] ?? root;
   const attrs = item?.attributes;
   const environment: Record<string, string> = {};
-  for (const v of item?.relationships?.variables?.data ?? []) {
+  // Pterodactyl menaruh relationships DI DALAM attributes; sebagian versi di level atas. Dukung keduanya.
+  const vars = attrs?.relationships?.variables?.data ?? item?.relationships?.variables?.data ?? [];
+  for (const v of vars) {
     const a = v.attributes;
     if (a?.env_variable) environment[a.env_variable] = String(a.default_value ?? '');
   }
-  console.error('EGG_DEBUG:', JSON.stringify({ nestId, eggId, dockerImage: attrs?.docker_image, startup: attrs?.startup, environment, hasVars: !!item?.relationships?.variables?.data?.length }, null, 2));
+  console.error('EGG_DEBUG:', JSON.stringify({ nestId, eggId, dockerImage: attrs?.docker_image, startup: attrs?.startup, environment, hasVars: vars.length > 0 }, null, 2));
   return { dockerImage: attrs?.docker_image ?? null, startup: attrs?.startup ?? null, environment };
 }
 
