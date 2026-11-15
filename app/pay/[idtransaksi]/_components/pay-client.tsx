@@ -185,8 +185,6 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
     }
   };
 
-  const isPurchase = isProductPurchase(invoice!);
-
   if (phase === 'error') {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
@@ -228,6 +226,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   }
 
   if (phase === 'paid' && invoice) {
+    const isPurchase = isProductPurchase(invoice);
     return (
       <div className="mx-auto flex max-w-4xl flex-col gap-6 py-6">
         <Card>
@@ -327,6 +326,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
     );
   }
 
+  const isPurchase = isProductPurchase(invoice);
   const showCountdown = invoice.expiredAt > 0;
   const expiredSoon = showCountdown && remaining !== null && remaining <= 0;
 
