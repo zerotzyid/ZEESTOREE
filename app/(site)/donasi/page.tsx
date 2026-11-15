@@ -219,7 +219,8 @@ export default async function DonasiPage() {
                   mengakui donasi Anda.
                 </p>
               </div>
-            </CardContent          </Card>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="mt-12 flex flex-col items-center gap-3 rounded-2xl border border-line bg-content/[0.02] p-6 text-center">
