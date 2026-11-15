@@ -180,9 +180,13 @@ export async function POST(request: Request): Promise<Response> {
       }
     } else if (paymentMethod === 'qris') {
       // Bayar langsung via QRIS (tidak potong saldo)
-      // Buat invoice Pixpayz
+      // Buat invoice Pixpayz dengan purpose direct_purchase
       const { createDepositInvoice } = await import('@/lib/invoice-processing');
-      const invoice = await createDepositInvoice(userKey, finalPrice);
+      const invoice = await createDepositInvoice(userKey, finalPrice, 'direct_purchase', {
+        orderId,
+        productId: parsed.data.productId,
+        productName: product.name,
+      });
       invoiceId = invoice.invoiceId;
       await update('/', {
         [`orders/${orderId}/invoiceId`]: invoiceId,

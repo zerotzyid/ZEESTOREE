@@ -9,9 +9,11 @@ import {
   Copy,
   ExternalLink,
   Loader2,
+  Package,
   QrCode,
   RefreshCw,
   Wallet,
+  TrendingUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,18 @@ type Invoice = {
   qrisImage: string;
   paymentLink: string;
   expiredAt: number;
+  purpose?: string;
+  orderId?: string | null;
+  productName?: string | null;
+};
+
+type Order = {
+  id: string;
+  status?: string;
+  productName?: string;
+  kind?: string;
+  panelUrl?: string | null;
+  panelServerId?: number | null;
 };
 
 type Phase = 'loading' | 'error' | 'notfound' | 'qr' | 'paid' | 'expired' | 'failed';
@@ -40,10 +54,15 @@ function formatCountdown(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+function isProductPurchase(invoice: Invoice): boolean {
+  return invoice.purpose === 'direct_purchase' || !!invoice.orderId;
+}
+
 export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>('loading');
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -56,18 +75,19 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
       let res = await fetch(`/api/user/invoices/${idtransaksi}`, { cache: 'no-store' });
 
       if (res.status === 404) {
+        // Bukan invoice, coba sebagai order
         const orderRes = await fetch(`/api/user/orders/${idtransaksi}`, { cache: 'no-store' });
         if (!orderRes.ok) {
           setPhase('notfound');
           return;
         }
-        const orderData = (await orderRes.json()) as { order?: { invoiceId?: string | null; status?: string } };
-        const orderInvoiceId = orderData.order?.invoiceId ?? null;
-        if (!orderInvoiceId) {
+        const orderData = (await orderRes.json()) as { order?: Order & { invoiceId?: string | null } };
+        if (!orderData.order?.invoiceId) {
           setPhase('notfound');
           return;
         }
-        res = await fetch(`/api/user/invoices/${orderInvoiceId}`, { cache: 'no-store' });
+        setOrder(orderData.order);
+        res = await fetch(`/api/user/invoices/${orderData.order.invoiceId}`, { cache: 'no-store' });
         if (!res.ok) {
           setPhase('notfound');
           return;
@@ -84,6 +104,19 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
 
       const data = (await res.json()) as Invoice;
       setInvoice(data);
+
+      // Jika ini pembelian produk, ambil detail order
+      if (isProductPurchase(data) && data.orderId) {
+        try {
+          const orderRes = await fetch(`/api/user/orders/${data.orderId}`, { cache: 'no-store' });
+          if (orderRes.ok) {
+            const orderData = (await orderRes.json()) as { order?: Order };
+            if (orderData.order) setOrder(orderData.order);
+          }
+        } catch {
+          /* abaikan gagal ambil order */
+        }
+      }
 
       if (data.status === 'paid') {
         setPhase('paid');
@@ -152,6 +185,8 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
     }
   };
 
+  const isPurchase = isProductPurchase(invoice!);
+
   if (phase === 'error') {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
@@ -168,7 +203,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   if (phase === 'notfound') {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
-        <Wallet aria-hidden size={32} className="mb-4 text-content-muted" />
+        <Package aria-hidden size={32} className="mb-4 text-content-muted" />
         <h2 className="text-lg font-semibold text-content">Transaksi tidak ditemukan</h2>
         <p className="text-sm text-content-muted">
           ID transaksi tidak valid atau tidak termasuk milik Anda.
@@ -198,11 +233,45 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
         <Card>
           <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
             <CheckCircle2 aria-hidden size={48} className="text-emerald-500" />
-            <h2 className="text-lg font-semibold text-content">Pembayaran diterima</h2>
+            <h2 className="text-lg font-semibold text-content">Pembayaran Berhasil</h2>
             <p className="text-sm text-content-muted">
               {formatRupiah(invoice.amount)} telah diproses.
             </p>
-            <div className="mt-2 flex flex-wrap justify-center gap-3">
+
+            {isPurchase && order ? (
+              <div className="w-full flex flex-col gap-3">
+                <h3 className="text-sm font-semibold text-content-muted uppercase tracking-wider">Detail Pesanan</h3>
+                <div className="rounded-xl border border-line bg-content/5 p-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-content-muted">Produk</span>
+                    <span className="font-mono text-content">{order.productName ?? 'Produk'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-content-muted">Status</span>
+                    <Badge variant="default">{order.status ?? 'paid'}</Badge>
+                  </div>
+                  {order.panelUrl ? (
+                    <div className="mt-3 flex items-center gap-2">
+                      <a
+                        href={order.panelUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+                      >
+                        Akses Panel Server
+                        <ArrowUpRight aria-hidden size={13} />
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-content-muted">
+                Saldo telah ditambahkan ke akun Anda.
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
               <Button asChild>
                 <a href="/dashboard/transactions" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-5 text-sm text-content transition-colors hover:bg-content/5">
                   Lihat transaksi
@@ -226,7 +295,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center py-10 text-center">
         <Clock aria-hidden size={32} className="mb-4 text-content-muted" />
-        <h2 className="text-lg font-semibold text-content">Invoice kedaluwarsa</h2>
+        <h2 className="text-lg font-semibold text-content">Invoice Kedaluwarsa</h2>
         <p className="text-sm text-content-muted">
           Waktu pembayaran telah habis. Buat transaksi baru untuk mencoba lagi.
         </p>
@@ -264,7 +333,9 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 py-6">
       <div className="flex flex-col gap-1">
-        <p className="label-mono">Pembayaran</p>
+        <p className="label-mono">
+          {isPurchase ? 'Pembelian Produk' : 'Pembayaran'}
+        </p>
         <h1 className="text-2xl font-semibold text-content">Bayar Sekarang</h1>
         <p className="text-sm text-content-muted">
           ID transaksi: <span className="font-mono text-content">{invoice.invoiceId}</span>
@@ -274,8 +345,8 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <QrCode aria-hidden size={17} className="text-accent" />
-            Total yang harus dibayar
+            {isPurchase ? <Package aria-hidden size={17} className="text-accent" /> : <QrCode aria-hidden size={17} className="text-accent" />}
+            {isPurchase ? 'Total Pembelian' : 'Total yang Harus Dibayar'}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 text-center">
@@ -291,17 +362,19 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
             ) : null}
           </div>
 
-          {invoice.qrisImage ? (
-            <img
-              src={invoice.qrisImage}
-              alt="Kode QRIS pembayaran"
-              className="w-full max-w-[320px] rounded-2xl border border-line bg-white p-2"
-            />
-          ) : null}
+          <div className="w-full flex justify-center">
+            {invoice.qrisImage ? (
+              <img
+                src={invoice.qrisImage}
+                alt="Kode QRIS pembayaran"
+                className="w-full max-w-[340px] rounded-2xl border border-line bg-white p-2 shadow-sm"
+              />
+            ) : null}
+          </div>
 
           {invoice.qrisImage ? (
             <p className="text-xs text-content-faint">
-              Pindai kode dengan aplikasi pembayaran apa pun (GoPay, OVO, Dana, dan lain-lain).
+              Pindai kode dengan aplikasi pembayaran (GoPay, OVO, Dana, ShopeePay, dll).
             </p>
           ) : null}
 
@@ -312,7 +385,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
               rel="noopener noreferrer"
               className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-line px-4 text-sm text-accent hover:bg-content/5"
             >
-              Buka tautan pembayaran
+              Buka Tautan Pembayaran
               <ArrowUpRight aria-hidden size={15} />
             </a>
           ) : null}
@@ -338,12 +411,12 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
                 disabled={!navigator.clipboard}
               >
                 <Copy aria-hidden size={14} />
-                Salin URL QRIS
+                Salin String QRIS
               </Button>
             ) : null}
             <Button type="button" variant="outline" size="sm" onClick={() => void retry()}>
               <RefreshCw aria-hidden size={16} />
-              Segarkan status
+              Segarkan Status
             </Button>
           </div>
         </CardContent>
@@ -351,20 +424,25 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
 
       <div className="mt-4 flex flex-col gap-2">
         <Badge variant="neutral">
-          {invoice.status === 'pending' ? 'Menunggu pembayaran' : invoice.status === 'processing' ? 'Sedang diproses' : invoice.status}
+          {invoice.status === 'pending' ? 'Menunggu Pembayaran' : invoice.status === 'processing' ? 'Sedang Diproses' : invoice.status}
         </Badge>
+        {order?.panelUrl && (
+          <p className="text-xs text-content-faint">
+            Setelah pembayaran, server panel akan diaktifkan otomatis.
+          </p>
+        )}
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
         <Button asChild>
           <a href="/dashboard/orders" className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-5 text-sm text-content transition-colors hover:bg-content/5">
-            Lihat riwayat pesanan
+            Lihat Riwayat Pesanan
             <ArrowUpRight aria-hidden size={15} />
           </a>
         </Button>
         <Button asChild>
           <a href="/" className="btn-accent">
-            Kembali ke beranda
+            Kembali ke Beranda
           </a>
         </Button>
       </div>

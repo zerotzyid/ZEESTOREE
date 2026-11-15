@@ -2,6 +2,10 @@ import { get, getWithEtag, set, setIfMatch, update, type Json } from './rtdb';
 import { checkInvoice, createInvoice, parsePixpayzDate } from './pixpayz';
 import { getPaymentConfig } from './payment-config';
 import { writeLog } from './log';
+import { decryptSecret } from './crypto';
+import { deleteApplicationServer, findPanelUser, createPanelUser, generatePanelPassword, buildServerArgs, createPanelServer, type PteroPanel } from './pterodactyl';
+import type { PanelDoc } from '@/app/api/admin/panels/route';
+import type { ProductDoc, ProvisionConfig } from './catalog';
 
 export type InvoicePurpose = 'deposit' | 'donation' | 'direct_purchase';
 
@@ -23,8 +27,9 @@ export type InvoiceDoc = {
   paidAt?: string | null;
   error?: string | null;
   // Untuk direct_purchase
-  productId?: string;
-  productName?: string;
+  productId?: string | null;
+  productName?: string | null;
+  orderId?: string | null;
 };
 
 type UserDoc = {
@@ -49,7 +54,8 @@ const CHECK_THROTTLE_MS = 8_000;
 export async function createDepositInvoice(
   userId: string,
   amount: number,
-  purpose: InvoicePurpose = 'deposit'
+  purpose: InvoicePurpose = 'deposit',
+  options?: { orderId?: string; productId?: string; productName?: string }
 ): Promise<InvoiceDoc> {
   const config = await getPaymentConfig();
   if (!config) {
@@ -84,13 +90,17 @@ export async function createDepositInvoice(
     expiredAt: parsePixpayzDate(created.expired_at) ?? 0,
     paidAt: null,
     error: null,
+    // Untuk direct_purchase
+    orderId: options?.orderId ?? null,
+    productId: options?.productId ?? null,
+    productName: options?.productName ?? null,
   };
 
   await set(`invoices/${doc.invoiceId}`, doc as unknown as Json);
   await writeLog({
     actor: userId,
     action: 'invoice.create',
-    detail: `${doc.invoiceId} purpose=${purpose} amount=${doc.amount}`,
+    detail: `${doc.invoiceId} purpose=${purpose} amount=${doc.amount} orderId=${options?.orderId ?? '-'}`,
   });
   return doc;
 }
@@ -257,9 +267,34 @@ export async function processInvoice(
       productId: inv.productId ?? null,
       createdAt: Date.now(),
     };
+
+    // Tandai order terkait sebagai paid
+    if (inv.orderId) {
+      await update('/', {
+        [`orders/${inv.orderId}/status`]: 'paid',
+        [`orders/${inv.orderId}/paidAt`]: Date.now(),
+        [`orders/${inv.orderId}/updatedAt`]: Date.now(),
+      } as Record<string, Json>);
+
+      // Provisioning untuk produk panel
+      const orderDoc = await get<{ productId?: string; kind?: string; productName?: string }>(
+        `orders/${inv.orderId}`
+      );
+      if (orderDoc?.kind === 'panel' && orderDoc.productId) {
+        const product = await get<ProductDoc>(`products/${orderDoc.productId}`);
+        if (product?.kind === 'panel' && product.provision) {
+          await provisionPanelOrder({
+            orderId: inv.orderId,
+            product,
+            price: inv.amount,
+            userId: inv.userId,
+          });
+        }
+      }
+    }
+
     // Trigger provisioning untuk produk panel/vps_trial/digital
     if (inv.productId) {
-      // Provisioning akan ditangani oleh cron atau manual check
       await writeLog({
         actor: inv.userId,
         action: 'direct_purchase.paid',
@@ -309,4 +344,115 @@ export async function getLatestPendingInvoice(
     )
     .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   return mine[0] ?? null;
+}
+
+/**
+ * Provisioning produk panel saat pembelian langsung (direct_purchase) dibayar.
+ * Dipanggil dari processInvoice setelah invoice lunas.
+ */
+async function provisionPanelOrder(args: {
+  orderId: string;
+  product: ProductDoc;
+  price: number;
+  userId: string;
+}): Promise<void> {
+  const { orderId, product, price, userId } = args;
+  const provision = product.provision as ProvisionConfig | null | undefined;
+  if (!provision || !provision.panelId) {
+    await writeLog({ actor: userId, action: 'direct_purchase.no_provision', detail: orderId });
+    return;
+  }
+
+  const panelDoc = await get<PanelDoc>(`panels/${provision.panelId}`);
+  if (!panelDoc || panelDoc.active === false || !panelDoc.apiKeyEnc) {
+    await writeLog({ actor: userId, action: 'direct_purchase.panel_inactive', detail: orderId });
+    return;
+  }
+
+  const userDoc = await get<{ username: string; email: string }>(`users/${userId}`);
+  if (!userDoc?.email) {
+    await writeLog({ actor: userId, action: 'direct_purchase.no_email', detail: orderId });
+    return;
+  }
+
+  const panel: PteroPanel = {
+    baseUrl: panelDoc.baseUrl,
+    apiKey: decryptSecret(panelDoc.apiKeyEnc),
+  };
+
+  // Cari atau buat akun panel berdasarkan email pengguna
+  let pUser = await findPanelUser(panel, userDoc.email);
+  let temporaryPassword: string | null = null;
+  if (!pUser) {
+    temporaryPassword = generatePanelPassword();
+    pUser = await createPanelUser(panel, {
+      email: userDoc.email,
+      username: userDoc.username.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24) || `user${Date.now()}`,
+      password: temporaryPassword,
+    });
+  }
+
+  // Build argumen server dari egg
+  const eggArgs = await buildServerArgs(panel, provision);
+  if (!eggArgs.dockerImage) {
+    await writeLog({ actor: userId, action: 'direct_purchase.no_docker_image', detail: orderId });
+    return;
+  }
+
+  const payload = {
+    name: `${product.name} ${orderId}`.slice(0, 191),
+    user: pUser.id,
+    egg: provision.eggId,
+    environment: eggArgs.environment,
+    docker_image: eggArgs.dockerImage as string,
+    startup: eggArgs.startup ?? 'npm start',
+    limits: {
+      memory: provision.memoryMb,
+      swap: provision.swapMb,
+      disk: provision.diskMb,
+      io: provision.ioWeight,
+      cpu: provision.cpuPercent,
+    },
+    feature_limits: {
+      databases: provision.databases,
+      allocations: provision.allocations,
+      backups: provision.backups,
+    },
+    ...(provision.allocationMode === 'default' && provision.allocationId
+      ? { allocation: { default: provision.allocationId } }
+      : { deploy: { find_available: true as const } }),
+  };
+
+  let server: Awaited<ReturnType<typeof createPanelServer>>;
+  try {
+    server = await createPanelServer(panel, payload);
+  } catch (allocError) {
+    const msg = allocError instanceof Error ? allocError.message : '';
+    const base = payload as Record<string, unknown>;
+    if ('allocation' in base && /allocation/i.test(msg)) {
+      delete base.allocation;
+      base.deploy = { find_available: true };
+      server = await createPanelServer(panel, base as Parameters<typeof createPanelServer>[1]);
+    } else {
+      throw allocError;
+    }
+  }
+
+  await update('/', {
+    [`orders/${orderId}/status`]: 'active',
+    [`orders/${orderId}/panelId`]: provision.panelId,
+    [`orders/${orderId}/panelServerId`]: server.id,
+    [`orders/${orderId}/panelServerUuid`]: server.uuid ?? null,
+    [`orders/${orderId}/panelUrl`]: panelDoc.baseUrl,
+    [`orders/${orderId}/expiresAt`]: Date.now() + ((product as { durationDays?: number }).durationDays || 30) * 86_400_000,
+    [`orders/${orderId}/panelPassword`]: temporaryPassword,
+    [`orders/${orderId}/failReason`]: null,
+    [`orders/${orderId}/updatedAt`]: Date.now(),
+  } as Record<string, Json>);
+
+  await writeLog({
+    actor: userId,
+    action: 'direct_purchase.panel_created',
+    detail: `${orderId} · server ${server.id} · ${panelDoc.name}`,
+  });
 }

@@ -49,14 +49,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Buat invoice dengan purpose 'donation'
-    const invoice = await createDepositInvoice(session.username, parsed.data.amount);
-    
-    // Update purpose menjadi 'donation'
-    const { set } = await import('@/lib/rtdb');
-    await set(`invoices/${invoice.invoiceId}/purpose`, 'donation');
-    await set(`invoices/${invoice.invoiceId}/amount`, parsed.data.amount);
-    await set(`invoices/${invoice.invoiceId}/total`, invoice.total);
-    await set(`invoices/${invoice.invoiceId}/fee`, invoice.fee);
+    const invoice = await createDepositInvoice(session.username, parsed.data.amount, 'donation');
 
     return Response.json({
       ok: true,
