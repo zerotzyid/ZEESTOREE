@@ -70,6 +70,10 @@ export type Settings = {
     banner: string;
     donationQrLogo: string;
   };
+  oauth: {
+    enabled: boolean;
+    providers: Record<string, { enabled: boolean; clientId: string; clientSecret: string; name: string; icon?: string }>;
+  };
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -162,5 +166,24 @@ export const DEFAULT_SETTINGS: Settings = {
     favicon: '',
     banner: '',
     donationQrLogo: '',
+  },
+  oauth: {
+    enabled: false,
+    providers: {
+      google: {
+        enabled: false,
+        clientId: '',
+        clientSecret: '',
+        name: 'Google',
+        icon: 'google',
+      },
+      github: {
+        enabled: false,
+        clientId: '',
+        clientSecret: '',
+        name: 'GitHub',
+        icon: 'github',
+      },
+    },
   },
 };

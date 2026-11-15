@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Route } from 'next';
@@ -11,7 +11,34 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { loginSchema } from '@/lib/validators';
-import { Mail } from 'lucide-react';
+import { Mail, Github } from 'lucide-react';
+
+type OAuthProvider = {
+  enabled: boolean;
+  clientId: string;
+  clientSecret: string;
+  name: string;
+  icon?: string;
+};
+
+type OAuthSettings = {
+  enabled: boolean;
+  providers: Record<string, OAuthProvider>;
+};
+
+const PROVIDER_ICONS: Record<string, React.ElementType> = {
+  google: Mail,
+  github: Github,
+};
+
+function getProviderIcon(provider: string): React.ElementType {
+  return PROVIDER_ICONS[provider] || Mail;
+}
+
+function OAuthIcon({ provider }: { provider: string }) {
+  const Icon = getProviderIcon(provider);
+  return <Icon aria-hidden size={16} />;
+}
 
 function LoginForm() {
   const router = useRouter();
@@ -23,9 +50,12 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
+  const [oauthLoading, setOAuthLoading] = useState(false);
 
   const nextPath = searchParams.get('next');
   const loginError = searchParams.get('error');
+
+  const oauth: OAuthSettings | undefined = settings?.oauth;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -65,6 +95,87 @@ function LoginForm() {
     }
   };
 
+  const handleOAuthLogin = useCallback(
+    async (provider: string) => {
+      if (!oauth?.enabled || !oauth.providers?.[provider]?.enabled) {
+        toast.error(`Penyedia OAuth '${provider}' tidak diaktifkan.`);
+        return;
+      }
+
+      setOAuthLoading(true);
+      try {
+        // Inisialisasi Firebase client SDK untuk OAuth
+        const { initializeApp } = await import('firebase/app');
+        const {
+          getAuth,
+          signInWithPopup,
+          GoogleAuthProvider,
+          GithubAuthProvider,
+        } = await import('firebase/auth');
+
+        const firebaseConfig = {
+          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        };
+
+        if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+          toast.error('Firebase belum dikonfigurasi di sisi klien.');
+          return;
+        }
+
+        const app = initializeApp(firebaseConfig, `oauth-${provider}`);
+        const auth = getAuth(app);
+
+        let result: any;
+        if (provider === 'google') {
+          result = await signInWithPopup(auth, new GoogleAuthProvider());
+        } else if (provider === 'github') {
+          result = await signInWithPopup(auth, new GithubAuthProvider());
+        } else {
+          toast.error(`Penyedia '${provider}' belum didukung.`);
+          return;
+        }
+
+        const idToken = await result.user.getIdToken();
+
+        // Kirim ID Token ke backend untuk verifikasi dan buat sesi
+        const res = await fetch(`/api/auth/oauth/${provider}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, next: nextPath ?? undefined }),
+        });
+
+        const data = (await res.json()) as { ok?: boolean; role?: string; next?: string; error?: string };
+        if (!res.ok || !data.ok) {
+          toast.error(data.error ?? 'Login OAuth gagal.');
+          return;
+        }
+
+        toast.success('Berhasil masuk dengan ' + (oauth.providers[provider]?.name ?? provider));
+        const target: Route =
+          data.next && data.next.startsWith('/')
+            ? (data.next as Route)
+            : data.role === 'admin'
+              ? '/admin'
+              : nextPath && nextPath.startsWith('/')
+                ? (nextPath as Route)
+                : '/';
+        router.push(target);
+        router.refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Login OAuth gagal.');
+      } finally {
+        setOAuthLoading(false);
+      }
+    },
+    [oauth, nextPath, router]
+  );
+
+  const enabledProviders = Object.entries(oauth?.providers ?? {})
+    .filter(([, p]) => p.enabled)
+    .map(([key, p]) => ({ key, ...p }));
+
   const animation = reduceMotion
     ? {}
     : {
@@ -85,7 +196,45 @@ function LoginForm() {
           ) : null}
         </div>
 
-        <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+        {/* OAuth providers */}
+        {oauth?.enabled && enabledProviders.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-line/60"></span>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase font-medium text-content-faint px-2">
+                Atau masuk dengan
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {enabledProviders.map((prov) => (
+                <Button
+                  key={prov.key}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleOAuthLogin(prov.key)}
+                  disabled={submitting || oauthLoading}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  {oauthLoading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="relative h-4 w-4">
+                        <span className="animate-spin block h-full w-full rounded-full border-2 border-accent border-t-transparent"></span>
+                      </span>
+                    </span>
+                  ) : (
+                    <OAuthIcon provider={prov.key} />
+                  )}
+                  {prov.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <form onSubmit={submit} noValidate className={`flex flex-col gap-4 ${oauth?.enabled && enabledProviders.length > 0 ? 'pt-6 border-t border-line/60' : ''}`}>
           {loginError && (
             <p className="text-xs text-red-500 text-center animate-pulse">
               {loginError === 'google_invalid_state'
@@ -139,24 +288,6 @@ function LoginForm() {
               </p>
             ) : null}
           </div>
-
-          {process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? (
-            <div className="flex flex-col gap-1.5">
-              <Button
-                type="button"
-                onClick={() => void window.location.assign('/api/auth/google')}
-                variant="outline"
-                className="w-full flex items-center justify-center gap-2"
-                disabled={submitting}
-              >
-                <Mail aria-hidden size={18} />
-                Masuk dengan Google
-              </Button>
-              <p className="text-xs text-content-faint text-center">
-                Menggunakan akun Google Anda.
-              </p>
-            </div>
-          ) : null}
 
           <Button type="submit" disabled={submitting} className="mt-1 w-full">
             {submitting ? 'Memproses...' : (settings?.systemTexts.menu.login ?? 'Masuk')}

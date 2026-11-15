@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Mail, Github, LockKeyhole } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/components/settings-provider';
 import { AssetField } from '@/components/admin/asset-field';
@@ -238,6 +238,7 @@ export function SettingsClient({ initial }: Props) {
           <TabsTrigger value="systemTexts">Teks sistem</TabsTrigger>
           <TabsTrigger value="integrations">Integrasi</TabsTrigger>
           <TabsTrigger value="donation">Donasi</TabsTrigger>
+          <TabsTrigger value="oauth">OAuth Login</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>
         </TabsList>
 
@@ -824,6 +825,165 @@ export function SettingsClient({ initial }: Props) {
             </PreviewBox>
 
             <SaveButton section="donation" saving={saving} onClick={(s) => void save(s)} />
+          </div>
+        </TabsContent>
+
+        {/* OAUTH LOGIN */}
+        <TabsContent value="oauth">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-line p-4">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="oauth-enabled">Aktifkan Login OAuth</Label>
+                <p className="text-xs text-content-faint">
+                  Bila nonaktif, tombol login dengan Google, GitHub, dan penyedia lainnya tidak akan tampil di halaman masuk.
+                </p>
+              </div>
+              <Switch
+                id="oauth-enabled"
+                checked={draft.oauth?.enabled ?? false}
+                onCheckedChange={(checked) => setField('oauth', 'enabled', checked)}
+              />
+            </div>
+
+            <p className="text-xs text-content-faint">
+              Konfigurasi setiap penyedia OAuth di bawah. Dapatkan Client ID dan Client Secret dari konsol masing-masing penyedia.
+            </p>
+
+            {Object.keys(draft.oauth?.providers ?? {}).length > 0 ? (
+              Object.entries(draft.oauth.providers).map(([key, provider]: [string, any]) => (
+                <div key={key} className="rounded-2xl border border-line p-4">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+                          {provider.icon === 'google' ? (
+                            <Mail aria-hidden size={18} className="text-content" />
+                          ) : provider.icon === 'github' ? (
+                            <Github aria-hidden size={18} className="text-content" />
+                          ) : (
+                            <LockKeyhole aria-hidden size={18} className="text-content" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-content">{provider.name ?? key}</p>
+                          <p className="text-xs text-content-faint">Penyedia OAuth</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            provider.enabled
+                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                              : 'bg-content/5 text-content-muted border border-line'
+                          }`}
+                        >
+                          {provider.enabled ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                        <Switch
+                          checked={provider.enabled ?? false}
+                          onCheckedChange={(checked) => {
+                            setSection('oauth', {
+                              ...draft.oauth,
+                              providers: {
+                                ...draft.oauth.providers,
+                                [key]: { ...provider, enabled: checked },
+                              },
+                            } as Settings['oauth']);
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`oauth-${key}-client-id`}>Client ID</Label>
+                        <Input
+                          id={`oauth-${key}-client-id`}
+                          value={provider.clientId ?? ''}
+                          onChange={(e) => {
+                            setSection('oauth', {
+                              ...draft.oauth,
+                              providers: {
+                                ...draft.oauth.providers,
+                                [key]: { ...provider, clientId: e.target.value },
+                              },
+                            } as Settings['oauth']);
+                          }}
+                          placeholder="Masukkan Client ID"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`oauth-${key}-client-secret`}>Client Secret</Label>
+                        <Input
+                          id={`oauth-${key}-client-secret`}
+                          type="password"
+                          value={provider.clientSecret ?? ''}
+                          onChange={(e) => {
+                            setSection('oauth', {
+                              ...draft.oauth,
+                              providers: {
+                                ...draft.oauth.providers,
+                                [key]: { ...provider, clientSecret: e.target.value },
+                              },
+                            } as Settings['oauth']);
+                          }}
+                          placeholder="Masukkan Client Secret"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`oauth-${key}-name`}>Nama Tampilan</Label>
+                      <Input
+                        id={`oauth-${key}-name`}
+                        value={provider.name ?? ''}
+                        onChange={(e) => {
+                          setSection('oauth', {
+                            ...draft.oauth,
+                            providers: {
+                              ...draft.oauth.providers,
+                              [key]: { ...provider, name: e.target.value },
+                            },
+                          } as Settings['oauth']);
+                        }}
+                        placeholder="Contoh: Google"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`oauth-${key}-icon`}>Ikon (opsional)</Label>
+                      <Input
+                        id={`oauth-${key}-icon`}
+                        value={provider.icon ?? ''}
+                        onChange={(e) => {
+                          setSection('oauth', {
+                            ...draft.oauth,
+                            providers: {
+                              ...draft.oauth.providers,
+                              [key]: { ...provider, icon: e.target.value || undefined },
+                            },
+                          } as Settings['oauth']);
+                        }}
+                        placeholder="google, github, dll"
+                      />
+                      <p className="text-xs text-content-faint">
+                        Nilai yang didukung: google, github
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-line bg-content/5 p-6 text-center">
+                <p className="text-sm text-content-muted">
+                  Tidak ada penyedia OAuth yang dikonfigurasi.
+                </p>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-line/60 flex justify-end">
+              <SaveButton section="oauth" saving={saving} onClick={(s) => void save(s)} />
+            </div>
           </div>
         </TabsContent>
 

@@ -83,6 +83,19 @@ export const donationSettingsSchema = z.object({
   qrAlt: shortText(120).nullable().optional(),
 });
 
+const oauthProviderSchema = z.object({
+  enabled: z.boolean(),
+  clientId: shortText(100),
+  clientSecret: shortText(200),
+  name: shortText(30),
+  icon: shortText(20).nullable().optional(),
+});
+
+export const oauthSettingsSchema = z.object({
+  enabled: z.boolean(),
+  providers: z.record(oauthProviderSchema),
+});
+
 export const faqSettingsSchema = z
   .array(
     z.object({
@@ -120,6 +133,7 @@ export const settingsPatchSchema = z
     appearance: appearanceSettingsSchema.optional(),
     contact: contactSettingsSchema.optional(),
     donation: donationSettingsSchema.optional(),
+    oauth: oauthSettingsSchema.optional(),
     faq: faqSettingsSchema.optional(),
     operational: operationalSettingsSchema.optional(),
     systemTexts: systemTextsSettingsSchema.optional(),
