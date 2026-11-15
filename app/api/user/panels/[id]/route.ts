@@ -46,12 +46,44 @@ async function load(id: string) {
   const panelDoc = await get<PanelDoc & { capiKeyEnc?: string }>(`panels/${order.panelId}`);
   if (!panelDoc) return { err: fail('Panel tidak ditemukan.', 404) };
   if (!panelDoc.capiKeyEnc) {
-    return { err: fail('Client API key panel belum diatur admin (admin → Panel → Client API key).', 409) };
+    return { err: fail('Client API key panel belum diatur admin (admin \u2192 Panel \u2192 Client API key).', 409) };
   }
   const panel: C.ClientPanel = { baseUrl: panelDoc.baseUrl, capiKey: decryptSecret(panelDoc.capiKeyEnc) };
   const expired = typeof order.expiresAt === 'number' && order.expiresAt < Date.now();
   return { session, order, panel, sid: order.panelServerUuid, expired };
 }
+
+const powerSchema = z.object({ action: z.literal('power'), signal: z.enum(['start', 'stop', 'restart', 'kill']) });
+const commandSchema = z.object({ action: z.literal('command'), command: z.string().min(1).max(500) });
+const writeSchema = z.object({ action: z.literal('write'), file: z.string(), content: z.string().max(500_000) });
+const deleteSchema = z.object({ action: z.literal('delete'), dir: z.string(), name: z.string().min(1).max(200) });
+const renameSchema = z.object({ action: z.literal('rename'), dir: z.string(), from: z.string().min(1).max(200), to: z.string().min(1).max(200) });
+const mkdirSchema = z.object({ action: z.literal('mkdir'), dir: z.string(), name: z.string().min(1).max(200) });
+const downloadSchema = z.object({ action: z.literal('download'), file: z.string() });
+const renewSchema = z.object({ action: z.literal('renew') });
+const uploadSchema = z.object({ action: z.literal('upload'), file: z.string(), dir: z.string() });
+
+const bodySchema = z.discriminatedUnion('action', [
+  powerSchema,
+  commandSchema,
+  writeSchema,
+  deleteSchema,
+  renameSchema,
+  mkdirSchema,
+  downloadSchema,
+  renewSchema,
+  uploadSchema,
+]);
+
+type PowerAction = z.infer<typeof powerSchema>;
+type CommandAction = z.infer<typeof commandSchema>;
+type WriteAction = z.infer<typeof writeSchema>;
+type DeleteAction = z.infer<typeof deleteSchema>;
+type RenameAction = z.infer<typeof renameSchema>;
+type MkdirAction = z.infer<typeof mkdirSchema>;
+type DownloadAction = z.infer<typeof downloadSchema>;
+type RenewAction = z.infer<typeof renewSchema>;
+type UploadAction = z.infer<typeof uploadSchema>;
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await params;
@@ -65,7 +97,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const st = await C.getResources(panel, sid).catch(() => null);
       return Response.json({ state: st, expiresAt: order.expiresAt ?? null, expired });
     }
-    if (expired) return fail('Panel sudah kedaluwarsa — perpanjang dulu.', 403);
+    if (expired) return fail('Panel sudah kedaluwarsa \u2014 perpanjang dulu.', 403);
     if (view === 'console') return Response.json({ lines: await C.fetchConsole(panel, sid) });
     if (view === 'files') {
       const dir = safePath(url.searchParams.get('dir'));
@@ -85,18 +117,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-const bodySchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('power'), signal: z.enum(['start', 'stop', 'restart', 'kill']) }),
-  z.object({ action: z.literal('command'), command: z.string().min(1).max(500) }),
-  z.object({ action: z.literal('write'), file: z.string(), content: z.string().max(500_000) }),
-  z.object({ action: z.literal('delete'), dir: z.string(), name: z.string().min(1).max(200) }),
-  z.object({ action: z.literal('rename'), dir: z.string(), from: z.string().min(1).max(200), to: z.string().min(1).max(200) }),
-  z.object({ action: z.literal('mkdir'), dir: z.string(), name: z.string().min(1).max(200) }),
-  z.object({ action: z.literal('download'), file: z.string() }),
-  z.object({ action: z.literal('renew') }),
-  z.object({ action: z.literal('upload'), file: z.string(), dir: z.string() }),
-]);
-
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await params;
   const ctx = await load(id);
@@ -104,7 +124,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { session, order, panel, sid, expired } = ctx as Exclude<typeof ctx, { err: Response }>;
 
   const contentType = request.headers.get('content-type') ?? '';
-  let parsed: z.SafeParseReturnType<unknown, { action: string; [key: string]: unknown }>;
 
   if (contentType.includes('multipart/form-data')) {
     // Handle ZIP upload (multipart/form-data)
@@ -118,7 +137,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (file.size > 50 * 1024 * 1024) return fail('File terlalu besar (maks 50MB).');
 
     const userKey = session.username.toLowerCase();
-    if (expired) return fail('Panel sudah kedaluwarsa — perpanjang dulu.', 403);
+    if (expired) return fail('Panel sudah kedaluwarsa \u2014 perpanjang dulu.', 403);
 
     try {
       // Upload ZIP
@@ -134,7 +153,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   } else {
     // Handle JSON actions
-    parsed = bodySchema.safeParse(await request.json().catch(() => null));
+    const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return fail('Permintaan tidak valid.');
     const b = parsed.data;
     const userKey = session.username.toLowerCase();
@@ -159,50 +178,53 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             note: `Perpanjang panel ${id} (+${days} hari)`, orderId: id, createdAt: now,
           },
         } as Record<string, Json>);
-        await writeLog({ actor: userKey, action: 'panel.renew', detail: `${id} · +${days}h · Rp${price}` });
+        await writeLog({ actor: userKey, action: 'panel.renew', detail: `${id} \u00b7 +${days}h \u00b7 Rp${price}` });
         return Response.json({ ok: true, expiresAt, saldo });
       }
 
       const needsActive =
-        b.action !== 'power' || b.signal === 'start' || b.signal === 'restart';
-      if (expired && needsActive) return fail('Panel sudah kedaluwarsa — perpanjang dulu.', 403);
+        b.action !== 'power' || (b as PowerAction).signal === 'start' || (b as PowerAction).signal === 'restart';
+      if (expired && needsActive) return fail('Panel sudah kedaluwarsa \u2014 perpanjang dulu.', 403);
 
       switch (b.action) {
         case 'power':
-          await C.sendPower(panel, sid, b.signal);
+          await C.sendPower(panel, sid, (b as PowerAction).signal);
           break;
         case 'command':
-          await C.sendCommand(panel, sid, b.command);
+          await C.sendCommand(panel, sid, (b as CommandAction).command);
           break;
         case 'write': {
-          const f = safePath(b.file);
+          const f = safePath((b as WriteAction).file);
           if (!f) return fail('Path tidak valid.');
-          await C.writeFile(panel, sid, f, b.content);
+          await C.writeFile(panel, sid, f, (b as WriteAction).content);
           break;
         }
         case 'delete': {
-          const d = safePath(b.dir);
-          if (!d || b.name.includes('/')) return fail('Path tidak valid.');
-          await C.deleteFiles(panel, sid, d, [b.name]);
+          const d = safePath((b as DeleteAction).dir);
+          if (!d || (b as DeleteAction).name.includes('/')) return fail('Path tidak valid.');
+          await C.deleteFiles(panel, sid, d, [(b as DeleteAction).name]);
           break;
         }
         case 'rename': {
-          const d = safePath(b.dir);
-          if (!d || b.from.includes('/') || b.to.includes('/')) return fail('Path tidak valid.');
-          await C.renameFile(panel, sid, d, b.from, b.to);
+          const d = safePath((b as RenameAction).dir);
+          if (!d || (b as RenameAction).from.includes('/') || (b as RenameAction).to.includes('/')) return fail('Path tidak valid.');
+          await C.renameFile(panel, sid, d, (b as RenameAction).from, (b as RenameAction).to);
           break;
         }
         case 'mkdir': {
-          const d = safePath(b.dir);
-          if (!d || b.name.includes('/')) return fail('Path tidak valid.');
-          await C.createFolder(panel, sid, d, b.name);
+          const d = safePath((b as MkdirAction).dir);
+          if (!d || (b as MkdirAction).name.includes('/')) return fail('Path tidak valid.');
+          await C.createFolder(panel, sid, d, (b as MkdirAction).name);
           break;
         }
         case 'download': {
-          const f = safePath(b.file);
+          const f = safePath((b as DownloadAction).file);
           if (!f) return fail('Path tidak valid.');
           return Response.json({ url: await C.getDownloadUrl(panel, sid, f) });
         }
+        case 'upload':
+          // handled in multipart branch
+          break;
       }
       return Response.json({ ok: true });
     } catch (e) {
