@@ -409,4 +409,3 @@ export async function sendApplicationCommand(panel: PteroPanel, serverId: number
     json: { command },
   });
 }
-}
