@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { loginSchema } from '@/lib/validators';
+import { Mail } from 'lucide-react';
 
 function LoginForm() {
   const router = useRouter();
@@ -24,6 +25,7 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const nextPath = searchParams.get('next');
+  const loginError = searchParams.get('error');
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -84,6 +86,23 @@ function LoginForm() {
         </div>
 
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+          {loginError && (
+            <p className="text-xs text-red-500 text-center animate-pulse">
+              {loginError === 'google_invalid_state'
+                ? 'Sesi Google tidak valid. Coba lagi.'
+                : loginError === 'google_email_unverified'
+                  ? 'Email Google belum diverifikasi.'
+                  : loginError === 'google_token_failed'
+                    ? 'Gagal mengautentikasi dengan Google.'
+                    : loginError === 'google_userinfo_failed'
+                      ? 'Gagal mengambil data profil Google.'
+                      : loginError === 'google_username_taken'
+                        ? 'Gagal membuat username dari akun Google.'
+                        : loginError.startsWith('google_')
+                          ? 'Login dengan Google gagal. Coba lagi.'
+                          : 'Login gagal. Coba lagi.'}
+            </p>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="identifier">Username atau email</Label>
             <Input
@@ -120,6 +139,24 @@ function LoginForm() {
               </p>
             ) : null}
           </div>
+
+          {process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? (
+            <div className="flex flex-col gap-1.5">
+              <Button
+                type="button"
+                onClick={() => void window.location.assign('/api/auth/google')}
+                variant="outline"
+                className="w-full flex items-center justify-center gap-2"
+                disabled={submitting}
+              >
+                <Mail aria-hidden size={18} />
+                Masuk dengan Google
+              </Button>
+              <p className="text-xs text-content-faint text-center">
+                Menggunakan akun Google Anda.
+              </p>
+            </div>
+          ) : null}
 
           <Button type="submit" disabled={submitting} className="mt-1 w-full">
             {submitting ? 'Memproses...' : (settings?.systemTexts.menu.login ?? 'Masuk')}

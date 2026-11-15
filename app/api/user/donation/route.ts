@@ -59,14 +59,10 @@ export async function POST(request: Request): Promise<Response> {
     await set(`invoices/${invoice.invoiceId}/fee`, invoice.fee);
 
     return Response.json({
+      ok: true,
+      redirectToPay: `/pay/${invoice.invoiceId}`,
       invoiceId: invoice.invoiceId,
-      status: invoice.status,
-      amount: invoice.amount,
-      fee: invoice.fee,
-      total: invoice.total,
-      qrisImage: invoice.qrisImage,
-      paymentLink: invoice.paymentLink,
-      expiredAt: invoice.expiredAt,
+      message: 'Invoice donasi QRIS dibuat. Lanjutkan ke halaman pembayaran.',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Gagal membuat invoice donasi.';

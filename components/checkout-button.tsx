@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Copy, ExternalLink, Loader2, QrCode, ShoppingCart, Wallet } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, QrCode, ShoppingCart, Wallet, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 
 type Result = {
   ok: boolean;
@@ -22,6 +22,7 @@ type Result = {
   total?: number;
   expiredAt?: number;
   phone?: string | null;
+  redirectToPay?: string | null;
 };
 
 async function readError(res: Response): Promise<string> {
@@ -41,6 +42,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const [result, setResult] = useState<Result | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [voucherCode, setVoucherCode] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('saldo');
 
   const checkout = async () => {
@@ -58,7 +60,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         body: JSON.stringify({
           productId,
           paymentMethod,
-          voucherCode: undefined,
+          voucherCode: voucherCode.trim().toUpperCase() || undefined,
           ...(kind === 'reseller'
             ? { customerName: customerName.trim(), customerPhone: customerPhone.trim() }
             : {}),
@@ -70,6 +72,13 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
       }
       const data = (await res.json().catch(() => null)) as (Result & { error?: string }) | null;
       if (!data) throw new Error(await readError(res));
+
+      // Jika server mengarahkan ke halaman pembayaran /pay/
+      if (data.redirectToPay) {
+        window.location.href = data.redirectToPay;
+        return;
+      }
+
       if (!res.ok || !data.ok) {
         setResult({
           ok: false,
@@ -278,6 +287,18 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
               ))}
             </div>
           </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="checkout-voucher">Kode voucher (opsional)</Label>
+            <Input
+              id="checkout-voucher"
+              value={voucherCode}
+              onChange={(e) => setVoucherCode(e.target.value)}
+              placeholder="Masukkan kode voucher"
+              maxLength={20}
+            />
+          </div>
+
           <Button
             type="button"
             onClick={() => void checkout()}

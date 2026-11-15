@@ -43,6 +43,8 @@ export type ProvisionConfig = {
   databases: number;
   allocations: number;
   backups: number;
+  /** Lama aktif panel dalam hari (default 30). Setelah lewat masa ini, panel akan dihapus otomatis jika tidak diperpanjang. */
+  durationDays: number;
 };
 
 export type ProductDoc = {

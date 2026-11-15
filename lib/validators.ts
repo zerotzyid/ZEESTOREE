@@ -159,6 +159,7 @@ const provisionSchema = z.object({
   databases: z.number().int().min(0).max(100),
   allocations: z.number().int().min(0).max(100),
   backups: z.number().int().min(0).max(100),
+  durationDays: z.number().int().min(1).max(3650).default(30),
 });
 
 const resellerSchema = z.object({

@@ -156,8 +156,13 @@ export default function DepositPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
       });
-      const data = (await res.json()) as (Invoice & { error?: string }) | { error: string };
+      const data = (await res.json()) as { ok?: boolean; redirectToPay?: string; invoiceId?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Gagal membuat invoice.');
+      // Arahkan ke halaman pembayaran /pay/
+      if (data.redirectToPay) {
+        window.location.href = data.redirectToPay;
+        return;
+      }
       setAmountInput('');
       applyInvoice(data as Invoice);
     } catch (error) {
