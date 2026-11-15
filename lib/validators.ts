@@ -71,6 +71,18 @@ export const contactSettingsSchema = z.object({
   email: shortText(100),
 });
 
+export const donationSettingsSchema = z.object({
+  enabled: z.boolean(),
+  title: shortText(60),
+  description: longText(300),
+  suggestedAmounts: z.array(z.number().int().positive()).max(20),
+  showCustomAmount: z.boolean(),
+  minAmount: z.number().int().min(0),
+  maxAmount: z.number().int().min(0),
+  qrImage: shortText(200).nullable().optional(),
+  qrAlt: shortText(120).nullable().optional(),
+});
+
 export const faqSettingsSchema = z
   .array(
     z.object({
@@ -107,6 +119,7 @@ export const settingsPatchSchema = z
     home: homeSettingsSchema.optional(),
     appearance: appearanceSettingsSchema.optional(),
     contact: contactSettingsSchema.optional(),
+    donation: donationSettingsSchema.optional(),
     faq: faqSettingsSchema.optional(),
     operational: operationalSettingsSchema.optional(),
     systemTexts: systemTextsSettingsSchema.optional(),
