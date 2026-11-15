@@ -448,7 +448,8 @@ export function PanelsClient() {
                 {saving ? <Loader2 aria-hidden size={16} className="animate-spin" /> : null}
                 Simpan
               </Button>
-            </DialogFooter          </form>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
