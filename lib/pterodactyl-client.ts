@@ -161,3 +161,30 @@ export async function fetchConsole(p: ClientPanel, id: string): Promise<string[]
     });
   });
 }
+
+/** Upload file ke server via Client API (multipart/form-data). */
+export async function uploadFile(p: ClientPanel, id: string, file: File, dir: string): Promise<void> {
+  const form = new FormData();
+  form.append('files', file);
+  form.append('directory', dir);
+  const res = await fetch(`${base(p.baseUrl)}${sv(id)}/files/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${p.capiKey}`, Accept: ACCEPT },
+    body: form,
+    cache: 'no-store',
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    let detail = text.slice(0, 200);
+    try { detail = (JSON.parse(text) as { errors?: Array<{ detail?: string }> }).errors?.[0]?.detail ?? detail; } catch {}
+    throw new Error(`Pterodactyl ${res.status}: ${detail || 'upload gagal'}`);
+  }
+}
+
+/** Ekstrak archive (.zip, .tar.gz, .tar) via Client API. */
+export async function decompressFile(p: ClientPanel, id: string, file: string, dir: string): Promise<void> {
+  await cfetch(p, `${sv(id)}/files/decompress`, {
+    method: 'POST',
+    json: { file, directory: dir },
+  });
+}

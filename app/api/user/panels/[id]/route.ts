@@ -8,7 +8,7 @@ import type { PanelDoc } from '@/app/api/admin/panels/route';
 import * as C from '@/lib/pterodactyl-client';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const DAY = 86_400_000;
 
@@ -94,6 +94,7 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('mkdir'), dir: z.string(), name: z.string().min(1).max(200) }),
   z.object({ action: z.literal('download'), file: z.string() }),
   z.object({ action: z.literal('renew') }),
+  z.object({ action: z.literal('upload'), file: z.string(), dir: z.string() }),
 ]);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
@@ -102,78 +103,110 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if ('err' in ctx && ctx.err) return ctx.err;
   const { session, order, panel, sid, expired } = ctx as Exclude<typeof ctx, { err: Response }>;
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return fail('Permintaan tidak valid.');
-  const b = parsed.data;
-  const userKey = session.username.toLowerCase();
+  const contentType = request.headers.get('content-type') ?? '';
+  let parsed: z.SafeParseReturnType<unknown, { action: string; [key: string]: unknown }>;
 
-  try {
-    if (b.action === 'renew') {
-      const product = await get<{ price?: number; durationDays?: number; name?: string }>(`products/${order.productId}`);
-      if (!product || typeof product.price !== 'number') return fail('Produk asal tidak ditemukan.', 404);
-      const price = product.price;
-      const days = product.durationDays && product.durationDays > 0 ? product.durationDays : 30;
-      let saldo: number | null = 0;
-      if (price > 0) saldo = await adjustSaldo(userKey, -price);
-      if (saldo === null) return fail('Saldo tidak cukup untuk perpanjang.', 402);
-      const now = Date.now();
-      const from = Math.max(now, order.expiresAt ?? 0);
-      const expiresAt = from + days * DAY;
-      await update('/', {
-        [`orders/${id}/expiresAt`]: expiresAt,
-        [`orders/${id}/updatedAt`]: now,
-        [`transactions/renew_${id}_${now}`]: {
-          userId: userKey, type: 'renew', amount: price, balanceAfter: saldo,
-          note: `Perpanjang panel ${id} (+${days} hari)`, orderId: id, createdAt: now,
-        },
-      } as Record<string, Json>);
-      await writeLog({ actor: userKey, action: 'panel.renew', detail: `${id} · +${days}h · Rp${price}` });
-      return Response.json({ ok: true, expiresAt, saldo });
+  if (contentType.includes('multipart/form-data')) {
+    // Handle ZIP upload (multipart/form-data)
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    const dir = (formData.get('dir') as string) ?? '/';
+    const action = formData.get('action') as string;
+
+    if (action !== 'upload' || !file) return fail('Permintaan upload tidak valid.');
+    if (!file.name.endsWith('.zip')) return fail('Hanya file .zip yang diperbolehkan.');
+    if (file.size > 50 * 1024 * 1024) return fail('File terlalu besar (maks 50MB).');
+
+    const userKey = session.username.toLowerCase();
+    if (expired) return fail('Panel sudah kedaluwarsa — perpanjang dulu.', 403);
+
+    try {
+      // Upload ZIP
+      await C.uploadFile(panel, sid, file, dir);
+      // Auto-extract
+      const zipName = file.name;
+      await C.decompressFile(panel, sid, zipName, dir);
+      // Optionally delete the zip after extraction
+      await C.deleteFiles(panel, sid, dir, [zipName]).catch(() => {});
+      return Response.json({ ok: true });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : 'Gagal upload/ekstrak ZIP.', 502);
     }
+  } else {
+    // Handle JSON actions
+    parsed = bodySchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return fail('Permintaan tidak valid.');
+    const b = parsed.data;
+    const userKey = session.username.toLowerCase();
 
-    const needsActive =
-      b.action !== 'power' || b.signal === 'start' || b.signal === 'restart';
-    if (expired && needsActive) return fail('Panel sudah kedaluwarsa — perpanjang dulu.', 403);
+    try {
+      if (b.action === 'renew') {
+        const product = await get<{ price?: number; durationDays?: number; name?: string }>(`products/${order.productId}`);
+        if (!product || typeof product.price !== 'number') return fail('Produk asal tidak ditemukan.', 404);
+        const price = product.price;
+        const days = product.durationDays && product.durationDays > 0 ? product.durationDays : 30;
+        let saldo: number | null = 0;
+        if (price > 0) saldo = await adjustSaldo(userKey, -price);
+        if (saldo === null) return fail('Saldo tidak cukup untuk perpanjang.', 402);
+        const now = Date.now();
+        const from = Math.max(now, order.expiresAt ?? 0);
+        const expiresAt = from + days * DAY;
+        await update('/', {
+          [`orders/${id}/expiresAt`]: expiresAt,
+          [`orders/${id}/updatedAt`]: now,
+          [`transactions/renew_${id}_${now}`]: {
+            userId: userKey, type: 'renew', amount: price, balanceAfter: saldo,
+            note: `Perpanjang panel ${id} (+${days} hari)`, orderId: id, createdAt: now,
+          },
+        } as Record<string, Json>);
+        await writeLog({ actor: userKey, action: 'panel.renew', detail: `${id} · +${days}h · Rp${price}` });
+        return Response.json({ ok: true, expiresAt, saldo });
+      }
 
-    switch (b.action) {
-      case 'power':
-        await C.sendPower(panel, sid, b.signal);
-        break;
-      case 'command':
-        await C.sendCommand(panel, sid, b.command);
-        break;
-      case 'write': {
-        const f = safePath(b.file);
-        if (!f) return fail('Path tidak valid.');
-        await C.writeFile(panel, sid, f, b.content);
-        break;
+      const needsActive =
+        b.action !== 'power' || b.signal === 'start' || b.signal === 'restart';
+      if (expired && needsActive) return fail('Panel sudah kedaluwarsa — perpanjang dulu.', 403);
+
+      switch (b.action) {
+        case 'power':
+          await C.sendPower(panel, sid, b.signal);
+          break;
+        case 'command':
+          await C.sendCommand(panel, sid, b.command);
+          break;
+        case 'write': {
+          const f = safePath(b.file);
+          if (!f) return fail('Path tidak valid.');
+          await C.writeFile(panel, sid, f, b.content);
+          break;
+        }
+        case 'delete': {
+          const d = safePath(b.dir);
+          if (!d || b.name.includes('/')) return fail('Path tidak valid.');
+          await C.deleteFiles(panel, sid, d, [b.name]);
+          break;
+        }
+        case 'rename': {
+          const d = safePath(b.dir);
+          if (!d || b.from.includes('/') || b.to.includes('/')) return fail('Path tidak valid.');
+          await C.renameFile(panel, sid, d, b.from, b.to);
+          break;
+        }
+        case 'mkdir': {
+          const d = safePath(b.dir);
+          if (!d || b.name.includes('/')) return fail('Path tidak valid.');
+          await C.createFolder(panel, sid, d, b.name);
+          break;
+        }
+        case 'download': {
+          const f = safePath(b.file);
+          if (!f) return fail('Path tidak valid.');
+          return Response.json({ url: await C.getDownloadUrl(panel, sid, f) });
+        }
       }
-      case 'delete': {
-        const d = safePath(b.dir);
-        if (!d || b.name.includes('/')) return fail('Path tidak valid.');
-        await C.deleteFiles(panel, sid, d, [b.name]);
-        break;
-      }
-      case 'rename': {
-        const d = safePath(b.dir);
-        if (!d || b.from.includes('/') || b.to.includes('/')) return fail('Path tidak valid.');
-        await C.renameFile(panel, sid, d, b.from, b.to);
-        break;
-      }
-      case 'mkdir': {
-        const d = safePath(b.dir);
-        if (!d || b.name.includes('/')) return fail('Path tidak valid.');
-        await C.createFolder(panel, sid, d, b.name);
-        break;
-      }
-      case 'download': {
-        const f = safePath(b.file);
-        if (!f) return fail('Path tidak valid.');
-        return Response.json({ url: await C.getDownloadUrl(panel, sid, f) });
-      }
+      return Response.json({ ok: true });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : 'Gagal menghubungi panel.', 502);
     }
-    return Response.json({ ok: true });
-  } catch (e) {
-    return fail(e instanceof Error ? e.message : 'Gagal menghubungi panel.', 502);
   }
 }
