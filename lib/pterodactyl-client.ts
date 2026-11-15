@@ -162,14 +162,18 @@ export async function fetchConsole(p: ClientPanel, id: string): Promise<string[]
   });
 }
 
-/** Upload file ke server via Client API (multipart/form-data). */
+/** Upload file ke server via Client API (two-step: get signed URL then upload). */
 export async function uploadFile(p: ClientPanel, id: string, file: File, dir: string): Promise<void> {
+  // Step 1: Get signed upload URL
+  const uploadResp = await cfetch<{ attributes: { url: string } }>(p, `${sv(id)}/files/upload?directory=${encodeURIComponent(dir)}`);
+  const signedUrl = uploadResp.attributes.url;
+
+  // Step 2: Upload file to signed URL
   const form = new FormData();
   form.append('files', file);
   form.append('directory', dir);
-  const res = await fetch(`${base(p.baseUrl)}${sv(id)}/files/upload`, {
+  const res = await fetch(signedUrl, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${p.capiKey}`, Accept: ACCEPT },
     body: form,
     cache: 'no-store',
   });
