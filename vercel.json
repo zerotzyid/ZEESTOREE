@@ -1,5 +1,5 @@
 {
   "crons": [
-    { "path": "/api/cron/invoices", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/invoices", "schedule": "0 0 * * *" }
   ]
 }
