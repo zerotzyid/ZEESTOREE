@@ -51,7 +51,7 @@ export async function GET(): Promise<Response> {
     const vouchers = await get<Record<string, VoucherDoc>>('vouchers');
     const list = vouchers
       ? Object.entries(vouchers)
-          .map(([code, doc]) => ({ code, ...doc }))
+          .map(([code, doc]) => ({ ...doc, code }))
           .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       : [];
     return Response.json({ vouchers: list }, { headers: { 'Cache-Control': 'no-store' } });

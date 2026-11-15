@@ -6,7 +6,7 @@ import { applyAccent } from '@/lib/accent';
 
 type SettingsContextValue = {
   settings: Settings | null;
-  assets: { logo: boolean; favicon: boolean; banner: boolean };
+  assets: { logo: boolean; favicon: boolean; banner: boolean; donationQrLogo: boolean };
   loading: boolean;
   refresh: () => Promise<void>;
 };
@@ -21,7 +21,7 @@ export function SettingsProvider({
   children,
 }: {
   initial: Settings;
-  initialAssets: { logo: boolean; favicon: boolean; banner: boolean };
+  initialAssets: { logo: boolean; favicon: boolean; banner: boolean; donationQrLogo: boolean };
   children: React.ReactNode;
 }) {
   const [settings, setSettings] = useState<Settings>(initial);
@@ -34,7 +34,7 @@ export function SettingsProvider({
       const res = await fetch('/api/settings', { cache: 'no-store' });
       if (!res.ok) return;
       const data = (await res.json()) as Settings & {
-        assets?: { logo: boolean; favicon: boolean; banner: boolean };
+        assets?: { logo: boolean; favicon: boolean; banner: boolean; donationQrLogo: boolean };
       };
       const { assets: nextAssets, ...nextSettings } = data;
       setSettings(nextSettings);

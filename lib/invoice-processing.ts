@@ -254,7 +254,7 @@ export async function processInvoice(
       balanceAfter: null,
       note: `Beli langsung: ${inv.productName ?? inv.productId ?? invoiceId}`,
       invoiceId,
-      productId: inv.productId,
+      productId: inv.productId ?? null,
       createdAt: Date.now(),
     };
     // Trigger provisioning untuk produk panel/vps_trial/digital

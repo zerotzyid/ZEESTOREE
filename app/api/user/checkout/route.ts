@@ -61,6 +61,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const userKey = session.username.toLowerCase();
+  let newSaldo: number | null = null;
 
   try {
     const userDoc = await get<Record<string, unknown>>(`users/${userKey}`);
@@ -107,9 +108,11 @@ export async function POST(request: Request): Promise<Response> {
         body: JSON.stringify({ code: voucherCode, productId: parsed.data.productId, amount: price }),
       });
       voucherData = await voucherRes.json();
+      if (!voucherData) {
+        return Response.json({ error: 'Gagal memproses voucher.' }, { status: 400 });
+      }
       
       if (!voucherData.valid) {
-        await remove(`orders/${orderId}`);
         return Response.json({ error: voucherData.error ?? 'Voucher tidak valid.' }, { status: 400 });
       }
       
@@ -142,7 +145,6 @@ export async function POST(request: Request): Promise<Response> {
     } as unknown as Json);
 
     // 2. Handle payment berdasarkan method
-    let newSaldo: number | null = null;
     let invoiceId: string | null = null;
     
     if (paymentMethod === 'saldo' || paymentMethod === 'voucher') {

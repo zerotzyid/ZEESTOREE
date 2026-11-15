@@ -33,7 +33,7 @@ export async function GET(
   try {
     const voucher = await get<VoucherDoc>(`vouchers/${upperCode}`);
     if (!voucher) return fail('Voucher tidak ditemukan.', 404);
-    return Response.json({ voucher: { code: upperCode, ...voucher } }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json({ voucher: { ...voucher, code: upperCode } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return fail(error instanceof Error ? error.message : 'Gagal memuat voucher.', 500);
   }

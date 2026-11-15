@@ -175,7 +175,7 @@ export function SettingsClient({ initial }: Props) {
   const setField = <K extends SectionKey>(
     section: K,
     field: keyof Settings[K] & string,
-    value: string | boolean
+    value: string | boolean | number
   ) => {
     setDraft((prev) => {
       if (!prev) return prev;

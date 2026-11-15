@@ -198,7 +198,7 @@ export default function PanelServerPage({ params }: { params: Promise<{ id: stri
         }
         if (!res.ok) throw new Error();
         const data = (await res.json()) as { orders?: typeof order[] };
-        const found = data.orders?.find((o) => o.id === id);
+        const found = data.orders?.find((o) => o?.id === id);
         if (!found || !found.panelUrl || (found.status !== 'active' && found.status !== 'completed')) {
           throw new Error('Server tidak ditemukan atau tidak aktif.');
         }
@@ -360,7 +360,7 @@ export default function PanelServerPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab} className="rounded-2xl border border-line">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="rounded-2xl border border-line">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview"><Monitor className="mr-1 h-4 w-4" />Overview</TabsTrigger>
           <TabsTrigger value="console"><Terminal className="mr-1 h-4 w-4" />Console</TabsTrigger>
@@ -865,7 +865,7 @@ function SettingsTab({ orderId, expired, onRenew }: { orderId: string; expired: 
               <span className="font-medium text-red-300">Reinstall Server</span>
               <span className="text-xs text-red-200">Hapus SEMUA data dan install ulang. TIDAK DAPAT DIBATALKAN.</span>
             </div>
-            <Button size="sm" variant="destructive" disabled={reinstalling} onClick={reinstall}>
+            <Button size="sm" variant="danger" disabled={reinstalling} onClick={reinstall}>
               {reinstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reinstall'}
             </Button>
           </div>

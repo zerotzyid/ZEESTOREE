@@ -16,13 +16,13 @@ const themeScript = `(function(){try{var t=localStorage.getItem('theme');var r=d
 
 async function loadInitialData(): Promise<{
   settings: Settings;
-  assets: { logo: boolean; favicon: boolean; banner: boolean };
+  assets: { logo: boolean; favicon: boolean; banner: boolean; donationQrLogo: boolean };
   isAdmin: boolean;
   maintenance: boolean;
   maintenanceMessage: string;
 }> {
   let settings: Settings = structuredClone(DEFAULT_SETTINGS);
-  let assets = { logo: false, favicon: false, banner: false };
+  let assets = { logo: false, favicon: false, banner: false, donationQrLogo: false };
   let isAdmin = false;
 
   try {
@@ -33,7 +33,7 @@ async function loadInitialData(): Promise<{
   try {
     assets = await getBrandingAssetNames();
   } catch {
-    assets = { logo: false, favicon: false, banner: false };
+    assets = { logo: false, favicon: false, banner: false, donationQrLogo: false };
   }
   try {
     const session = await getSession();

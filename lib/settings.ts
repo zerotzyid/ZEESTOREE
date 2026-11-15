@@ -42,11 +42,12 @@ export async function getSettings(): Promise<Settings> {
 }
 
 /** Daftar nama aset branding yang sudah terunggah (tanpa membaca base64-nya). */
-export async function getBrandingAssetNames(): Promise<{ logo: boolean; favicon: boolean; banner: boolean }> {
+export async function getBrandingAssetNames(): Promise<{ logo: boolean; favicon: boolean; banner: boolean; donationQrLogo: boolean }> {
   const branding = await get<Record<string, unknown>>('assets/branding', { shallow: true });
   return {
     logo: branding?.logo !== undefined && branding.logo !== null,
     favicon: branding?.favicon !== undefined && branding.favicon !== null,
     banner: branding?.banner !== undefined && branding.banner !== null,
+    donationQrLogo: branding?.donationQrLogo !== undefined && branding.donationQrLogo !== null,
   };
 }

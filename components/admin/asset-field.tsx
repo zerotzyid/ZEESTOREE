@@ -7,12 +7,13 @@ import { useSettings } from '@/components/settings-provider';
 import { Button } from '@/components/ui/button';
 import { fileToCompressedDataUrl } from '@/lib/image-client';
 
-type AssetKind = 'logo' | 'favicon' | 'banner';
+type AssetKind = 'logo' | 'favicon' | 'banner' | 'donationQrLogo';
 
 const LIMITS: Record<AssetKind, { maxSide: number; maxBytes: number }> = {
   logo: { maxSide: 512, maxBytes: 200 * 1024 },
   favicon: { maxSide: 512, maxBytes: 200 * 1024 },
   banner: { maxSide: 1600, maxBytes: 500 * 1024 },
+  donationQrLogo: { maxSide: 512, maxBytes: 200 * 1024 },
 };
 
 type Props = {
