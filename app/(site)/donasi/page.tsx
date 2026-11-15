@@ -10,22 +10,12 @@ export default async function DonasiPage() {
     getPublicPaymentConfig(),
   ]);
 
-  const storeName = settings.site?.name ?? 'Zeestore';
-  const donation = settings.donation ?? {
-    enabled: false,
-    title: 'Dukung Kami',
-    description: 'Donasi Anda membantu kami menjaga layanan tetap berjalan dan mengembangkan fitur baru.',
-    suggestedAmounts: [10000, 25000, 50000, 100000],
-    showCustomAmount: true,
-    minAmount: 5000,
-    maxAmount: 10000000,
-    qrImage: '',
-    qrAlt: 'QRIS Donasi',
-  };
+  const storeName = settings.identity?.storeName ?? 'Zeestore';
+  const donation = settings.donation;
   const branding = settings.branding ?? { logo: '', favicon: '', banner: '', donationQrLogo: '' };
-  const contact = settings.site?.contact ?? { whatsapp: null, telegram: null, email: null };
+  const contact = settings.contact ?? { whatsapp: null, telegram: null, email: null };
 
-  if (!donation.enabled) {
+  if (!donation?.enabled) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="rounded-2xl border border-line p-6 text-center">
