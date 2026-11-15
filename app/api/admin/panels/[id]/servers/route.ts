@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/authz';
 import { decryptSecret } from '@/lib/crypto';
 import { writeLog } from '@/lib/log';
 import type { PanelDoc } from '@/app/api/admin/panels/route';
+import type { ClientPanel } from '@/lib/pterodactyl-client';
 import * as C from '@/lib/pterodactyl';
 
 export const dynamic = 'force-dynamic';
@@ -18,11 +19,11 @@ const serverActionSchema = z.object({
   perPage: z.number().int().positive().max(500).optional(),
 });
 
-async function getPanel(panelId: string): Promise<{ panelDoc: PanelDoc; appPanel: C.PteroPanel; clientPanel: C.ClientPanel } | null> {
+async function getPanel(panelId: string): Promise<{ panelDoc: PanelDoc; appPanel: C.PteroPanel; clientPanel: ClientPanel } | null> {
   const panelDoc = await get<PanelDoc & { capiKeyEnc?: string }>(`panels/${panelId}`);
   if (!panelDoc || !panelDoc.apiKeyEnc) return null;
   const appPanel: C.PteroPanel = { baseUrl: panelDoc.baseUrl, apiKey: decryptSecret(panelDoc.apiKeyEnc) };
-  let clientPanel: C.ClientPanel | null = null;
+  let clientPanel: ClientPanel | null = null;
   if (panelDoc.capiKeyEnc) {
     clientPanel = { baseUrl: panelDoc.baseUrl, capiKey: decryptSecret(panelDoc.capiKeyEnc) };
   }
