@@ -18,6 +18,7 @@ const patchSchema = z
       .refine((v) => /^https?:\/\/\S+$/i.test(v), { message: 'URL panel harus diawali http(s)://.' })
       .optional(),
     apiKey: z.string().trim().min(8).max(300).optional(),
+    capiKey: z.string().trim().min(8).max(300).optional(),
     active: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Tidak ada perubahan.' });
