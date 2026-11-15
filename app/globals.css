@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palet terang (default CSS) */
+:root {
+  --surface: 247 248 250;
+  --surface-raised: 255 255 255;
+  --content: 20 23 29;
+  --content-muted: 75 85 99;
+  --content-faint: 148 163 184;
+  --line: 226 232 240;
+  --accent: #e5334b;
+  --accent-2: #ff5c72;
+  --accent-soft: #e5334b33;
+  --accent-contrast: #ffffff;
+}
+
+/* Palet gelap (default situs) */
+.dark {
+  --surface: 20 23 29;
+  --surface-raised: 27 31 38;
+  --content: 244 246 248;
+  --content-muted: 156 163 175;
+  --content-faint: 107 114 128;
+  --line: 255 255 255;
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-surface text-content font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Gaya kaca untuk kartu, navbar, modal, widget */
+  .glass {
+    background: rgb(255 255 255 / 0.04);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  html:not(.dark) .glass {
+    background: rgb(255 255 255 / 0.72);
+    border: 1px solid rgb(20 23 29 / 0.06);
+  }
+  .glass-strong {
+    background: rgb(27 31 38 / 0.85);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  html:not(.dark) .glass-strong {
+    background: rgb(255 255 255 / 0.9);
+    border: 1px solid rgb(20 23 29 / 0.08);
+  }
+  .text-accent-gradient {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .btn-accent {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: var(--accent-contrast);
+  }
+  .btn-accent:hover {
+    filter: brightness(1.06);
+  }
+  .label-mono {
+    @apply font-mono text-[11px] uppercase tracking-[0.18em] text-content-faint;
+  }
+}
+
+/* Landing — ticker berjalan (jeda saat hover) */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee-x var(--marquee-duration, 40s) linear infinite;
+  will-change: transform;
+}
+.marquee-band:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* Landing — struk dengan tepi bergerigi */
+.receipt {
+  position: relative;
+  background: rgb(var(--surface-raised));
+  filter: drop-shadow(0 14px 34px rgb(0 0 0 / 0.14));
+}
+.receipt::before,
+.receipt::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background-repeat: repeat-x;
+  background-size: 20px 10px;
+  pointer-events: none;
+}
+.receipt::before {
+  top: -10px;
+  background-image: radial-gradient(circle at 10px 10px, transparent 6.5px, rgb(var(--surface-raised)) 7px);
+}
+.receipt::after {
+  bottom: -10px;
+  background-image: radial-gradient(circle at 10px 0, transparent 6.5px, rgb(var(--surface-raised)) 7px);
+}

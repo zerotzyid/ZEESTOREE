@@ -1,0 +1,60 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "settings": {
+      ".read": true,
+      ".write": false
+    },
+    "assets": {
+      ".read": false,
+      ".write": false
+    },
+    "users": {
+      ".read": false,
+      ".write": false
+    },
+    "users_by_email": {
+      ".read": false,
+      ".write": false
+    },
+    "products": {
+      ".read": false,
+      ".write": false
+    },
+    "categories": {
+      ".read": false,
+      ".write": false
+    },
+    "panels": {
+      ".read": false,
+      ".write": false
+    },
+    "orders": {
+      ".read": false,
+      ".write": false
+    },
+    "transactions": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["userId"]
+    },
+    "invoices": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["status", "userId"]
+    },
+    "payment_config": {
+      ".read": false,
+      ".write": false
+    },
+    "logs": {
+      ".read": false,
+      ".write": false
+    },
+    "nokos_orders": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
