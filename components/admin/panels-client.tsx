@@ -26,12 +26,13 @@ type AdminPanel = {
   baseUrl: string;
   active: boolean;
   hasKey: boolean;
+  hasCapiKey?: boolean;
   createdAt: number;
 };
 
-type FormState = { name: string; baseUrl: string; apiKey: string; active: boolean };
+type FormState = { name: string; baseUrl: string; apiKey: string; capiKey: string; active: boolean };
 
-const EMPTY_FORM: FormState = { name: '', baseUrl: '', apiKey: '', active: true };
+const EMPTY_FORM: FormState = { name: '', baseUrl: '', apiKey: '', capiKey: '', active: true };
 
 async function readError(res: Response): Promise<string> {
   const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -76,7 +77,7 @@ export function PanelsClient() {
 
   const openEdit = (panel: AdminPanel) => {
     setEditing(panel);
-    setForm({ name: panel.name, baseUrl: panel.baseUrl, apiKey: '', active: panel.active });
+    setForm({ name: panel.name, baseUrl: panel.baseUrl, apiKey: '', capiKey: '', active: panel.active });
     setDialogOpen(true);
   };
 
@@ -94,6 +95,7 @@ export function PanelsClient() {
         active: form.active,
       };
       if (form.apiKey.trim()) payload.apiKey = form.apiKey.trim();
+      if (form.capiKey.trim()) payload.capiKey = form.capiKey.trim();
 
       const res = editing
         ? await fetch(`/api/admin/panels/${editing.id}`, {
@@ -310,6 +312,21 @@ export function PanelsClient() {
                 autoComplete="off"
                 required={!editing}
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="panel-capikey">Client API key (ptlc_…){editing ? ' — opsional' : ''}</Label>
+              <Input
+                id="panel-capikey"
+                type="password"
+                value={form.capiKey}
+                onChange={(e) => setForm((f) => ({ ...f, capiKey: e.target.value }))}
+                placeholder="Dari akun admin: Account → API Credentials"
+                maxLength={300}
+                autoComplete="off"
+              />
+              <p className="text-xs text-content-faint">
+                Dipakai pelanggan untuk start/stop, console &amp; file. Harus dari akun root admin.
+              </p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-3">
               <div>

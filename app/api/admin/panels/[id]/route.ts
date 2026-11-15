@@ -66,6 +66,10 @@ export async function PATCH(
       fields.apiKeyEnc = encryptSecret(String(fields.apiKey));
     }
     delete fields.apiKey;
+    if (fields.capiKey) {
+      fields.capiKeyEnc = encryptSecret(String(fields.capiKey));
+    }
+    delete fields.capiKey;
 
     for (const [field, value] of Object.entries(fields)) {
       await set(`panels/${id}/${field}`, value as never);

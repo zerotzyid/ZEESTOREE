@@ -17,6 +17,7 @@ export type OrderDoc = {
   panelServerUuid?: string | null;
   panelPassword?: string | null;
   panelUrl?: string | null;
+  expiresAt?: number | null;
   refundedAt?: number | null;
   paidAt?: number | null;
   completedAt?: number | null;

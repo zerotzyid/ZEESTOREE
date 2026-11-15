@@ -538,6 +538,7 @@ async function provisionPanelOrder(args: {
       [`orders/${orderId}/panelServerId`]: server.id,
       [`orders/${orderId}/panelServerUuid`]: server.uuid ?? null,
       [`orders/${orderId}/panelUrl`]: panelDoc.baseUrl,
+      [`orders/${orderId}/expiresAt`]: Date.now() + ((product as { durationDays?: number }).durationDays || 30) * 86_400_000,
       [`orders/${orderId}/panelPassword`]: temporaryPassword,
       [`orders/${orderId}/failReason`]: null,
       [`orders/${orderId}/updatedAt`]: Date.now(),

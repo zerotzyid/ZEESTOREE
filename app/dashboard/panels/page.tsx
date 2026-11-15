@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PanelManager } from '@/components/panel-manager';
 
 type Order = {
   id: string;
@@ -19,6 +20,8 @@ type Order = {
   panelUsername?: string | null;
   panelPassword?: string | null;
   panelServerId?: number | null;
+  panelServerUuid?: string | null;
+  expiresAt?: number | null;
 };
 
 function CopyBtn({ value, label }: { value: string; label: string }) {
@@ -172,6 +175,9 @@ export default function MyPanelsPage() {
                   </p>
                 )}
               </div>
+              {order.panelServerUuid ? (
+                <PanelManager orderId={order.id} initialExpiresAt={order.expiresAt} />
+              ) : null}
             </li>
           ))}
         </ul>

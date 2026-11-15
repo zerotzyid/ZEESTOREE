@@ -10,6 +10,7 @@ export type PanelDoc = {
   name: string;
   baseUrl: string;
   apiKeyEnc: string;
+  capiKeyEnc?: string;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -24,6 +25,7 @@ const createSchema = z.object({
     .max(200)
     .refine((v) => /^https?:\/\/\S+$/i.test(v), { message: 'URL panel harus diawali http(s)://.' }),
   apiKey: z.string().trim().min(8, 'API key terlalu pendek.').max(300).optional(),
+  capiKey: z.string().trim().min(8, 'Client API key terlalu pendek.').max(300).optional(),
   active: z.boolean(),
 });
 
@@ -32,8 +34,8 @@ const patchSchema = createSchema.partial().refine((v) => Object.keys(v).length >
 });
 
 function stripKey(doc: PanelDoc): Record<string, unknown> {
-  const { apiKeyEnc: _omit, ...rest } = doc;
-  return { ...rest, hasKey: Boolean(doc.apiKeyEnc) };
+  const { apiKeyEnc: _omit, capiKeyEnc: _omit2, ...rest } = doc;
+  return { ...rest, hasKey: Boolean(doc.apiKeyEnc), hasCapiKey: Boolean(doc.capiKeyEnc) };
 }
 
 /** GET: daftar panel (API key tidak pernah dikirim keluar — hanya penanda hasKey). */
@@ -89,6 +91,7 @@ export async function POST(request: Request): Promise<Response> {
       name: parsed.data.name,
       baseUrl: parsed.data.baseUrl.replace(/\/+$/, ''),
       apiKeyEnc: encryptSecret(parsed.data.apiKey),
+      ...(parsed.data.capiKey ? { capiKeyEnc: encryptSecret(parsed.data.capiKey) } : {}),
       active: parsed.data.active,
       createdAt: now,
       updatedAt: now,
