@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Copy, ExternalLink, Loader2, ShoppingCart } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, QrCode, ShoppingCart, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 
 type Result = {
   ok: boolean;
@@ -18,6 +19,8 @@ type Result = {
   qrString?: string | null;
   qrImageUrl?: string | null;
   invoiceUrl?: string | null;
+  total?: number;
+  expiredAt?: number;
   phone?: string | null;
 };
 
@@ -26,11 +29,19 @@ async function readError(res: Response): Promise<string> {
   return data?.error ?? `Permintaan gagal (${res.status}).`;
 }
 
+type PaymentMethod = 'saldo' | 'qris';
+
+const METHOD_LABEL: Record<PaymentMethod, string> = {
+  saldo: 'Bayar dari saldo',
+  qris: 'Bayar langsung via QRIS',
+};
+
 export function CheckoutButton({ productId, kind }: { productId: string; kind: string }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('saldo');
 
   const checkout = async () => {
     if (kind === 'reseller') {
@@ -46,6 +57,8 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId,
+          paymentMethod,
+          voucherCode: undefined,
           ...(kind === 'reseller'
             ? { customerName: customerName.trim(), customerPhone: customerPhone.trim() }
             : {}),
@@ -141,47 +154,67 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         ) : null}
 
         {result.qrImageUrl || result.qrString || result.invoiceUrl ? (
-          <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
-            <p className="label-mono">QRIS pembayaran (bukan saldo)</p>
-            <div className="flex flex-wrap items-start gap-4">
-              {result.qrImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={result.qrImageUrl}
-                  alt="QRIS pembayaran"
-                  className="h-40 w-40 rounded-xl border border-line bg-white object-contain p-1"
-                />
-              ) : null}
-              <div className="flex flex-col gap-2">
-                {result.invoiceUrl ? (
-                  <a
-                    href={result.invoiceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
-                  >
-                    Buka halaman invoice
-                    <ExternalLink aria-hidden size={13} />
-                  </a>
-                ) : null}
-                {result.qrString ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      void navigator.clipboard
-                        .writeText(result.qrString ?? '')
-                        .then(() => toast.success('String QRIS disalin.'));
-                    }}
-                  >
-                    <Copy aria-hidden size={13} />
-                    Salin string QRIS
-                  </Button>
-                ) : null}
+          <Card className="rounded-xl border border-line p-3">
+            <CardContent className="p-0">
+              <div className="flex flex-col gap-3 p-3">
+                <p className="label-mono">QRIS pembayaran (bukan saldo)</p>
+                {result.total !== undefined && (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-content-faint">Total yang harus dibayar</span>
+                    <span className="font-mono font-semibold text-accent">
+                      Rp {result.total.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-start gap-4">
+                  {result.qrImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={result.qrImageUrl}
+                      alt="QRIS pembayaran"
+                      className="h-40 w-40 rounded-xl border border-line bg-white object-contain p-1"
+                    />
+                  ) : null}
+                  <div className="flex flex-col gap-2">
+                    {result.invoiceUrl ? (
+                      <a
+                        href={result.invoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+                      >
+                        Buka halaman invoice
+                        <ExternalLink aria-hidden size={13} />
+                      </a>
+                    ) : null}
+                    {result.qrString ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          void navigator.clipboard
+                            .writeText(result.qrString ?? '')
+                            .then(() => toast.success('String QRIS disalin.'));
+                        }}
+                      >
+                        <Copy aria-hidden size={13} />
+                        Salin string QRIS
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                {result.expiredAt && (
+                  <p className="text-xs text-content-faint font-mono">
+                    Invoice berlaku hingga {new Date(result.expiredAt).toLocaleString('id-ID')}
+                  </p>
+                )}
+                <p className="text-xs text-content-faint">
+                  Status diperbarui otomatis setelah pembayaran terkonfirmasi.
+                </p>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         ) : null}
 
         <div className="flex flex-wrap gap-2">
@@ -225,16 +258,41 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
             />
           </div>
         </div>
-      ) : null}
-
-      <Button type="button" onClick={() => void checkout()} disabled={busy} className="w-fit">
-        {busy ? (
-          <Loader2 aria-hidden size={16} className="animate-spin" />
-        ) : (
-          <ShoppingCart aria-hidden size={16} />
-        )}
-        {kind === 'reseller' ? 'Pesan & ambil QRIS' : 'Beli sekarang — bayar dari saldo'}
-      </Button>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="checkout-payment">Metode pembayaran</Label>
+            <div className="grid grid-cols-1 gap-2">
+              {(['saldo', 'qris'] as PaymentMethod[]).map((m) => (
+                <Button
+                  key={m}
+                  type="button"
+                  variant={paymentMethod === m ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPaymentMethod(m)}
+                  className="w-full flex items-center gap-2 text-left"
+                >
+                  {m === 'qris' ? <QrCode aria-hidden size={14} /> : <Wallet aria-hidden size={14} />}
+                  {METHOD_LABEL[m]}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={() => void checkout()}
+            disabled={busy}
+            className="w-fit btn-accent"
+          >
+            {busy ? (
+              <Loader2 aria-hidden size={16} className="animate-spin" />
+            ) : (
+              <ShoppingCart aria-hidden size={16} />
+            )}
+            {kind === 'reseller' ? 'Pesan & ambil QRIS' : paymentMethod === 'qris' ? 'Pesan & bayar QRIS' : 'Beli sekarang — bayar dari saldo'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -117,6 +117,7 @@ export const DEFAULT_SETTINGS: Settings = {
       transactions: 'Riwayat transaksi',
       profile: 'Profil',
       deposit: 'Deposit',
+      voucher: 'Voucher',
       nokos: 'Nomor Virtual',
       login: 'Masuk',
       register: 'Daftar',
