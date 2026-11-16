@@ -156,12 +156,21 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
       } catch {
         /* biarkan polling berikutnya mencoba */
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [phase, invoice]);
+
+  useEffect(() => {
+    if (phase !== 'paid' || !invoice || !isProductPurchase(invoice)) return;
+    // Redirect to panel management page after successful payment for panel products
+    if (order?.panelUrl || order?.id) {
+      const redirectTo = order.id ? `/dashboard/panels/${order.id}` : '/dashboard/orders';
+      window.location.href = redirectTo;
+    }
+  }, [phase, invoice, order, router]);
 
   useEffect(() => {
     if (phase !== 'qr' || !invoice || invoice.expiredAt <= 0) return;

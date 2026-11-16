@@ -1,16 +1,33 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Headset, X, ArrowRight } from 'lucide-react';
+import { Headset, X, ArrowRight, ArrowLeft, Folder, PackageOpen, RefreshCw } from 'lucide-react';
 import { useSettings } from '@/components/settings-provider';
-import { ProductCatalog } from '@/components/product-catalog';
 import { StatusBoard } from '@/components/status-board';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { ProductImage } from '@/components/product-image';
+import { cn } from '@/lib/cn';
+import { formatRupiah } from '@/lib/format';
 
 const CHIP_LINKS = ['/dashboard/deposit', '/dashboard/orders', '/dashboard'] as const;
 
 type Stats = { activePanels: number; completedOrders: number; activeProducts: number };
+
+type ProductListItem = {
+  id: string;
+  name?: unknown;
+  description?: unknown;
+  price?: unknown;
+  categoryId?: unknown;
+  image?: unknown;
+  [key: string]: unknown;
+};
+
+type CategoryItem = { id: string; name: string; order: number };
 
 function contactHref(value: string): string | null {
   const trimmed = value.trim();
@@ -184,14 +201,38 @@ export function HomeContent() {
   const stats = usePublicStats();
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const [bubbleOpen, setBubbleOpen] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [products, setProducts] = useState<ProductListItem[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  const loadCatalog = async () => {
+    setCatalogState('loading');
+    try {
+      const [pRes, cRes] = await Promise.all([
+        fetch('/api/products', { cache: 'no-store' }),
+        fetch('/api/categories', { cache: 'no-store' }),
+      ]);
+      const pData = (await pRes.json()) as { products?: ProductListItem[] };
+      const cData = (await cRes.json()) as { categories?: CategoryItem[] };
+      setProducts(Array.isArray(pData.products) ? pData.products : []);
+      setCategories(Array.isArray(cData.categories) ? cData.categories : []);
+      setCatalogState('ready');
+    } catch {
+      setCatalogState('error');
+    }
+  };
 
   useEffect(() => {
-    try {
-      setBubbleOpen(sessionStorage.getItem('help-bubble-closed') !== '1');
-    } catch {
-      setBubbleOpen(true);
-    }
+    void loadCatalog();
   }, []);
+
+  const filtered = useMemo(() => {
+    if (!selectedCategory) return [];
+    return products.filter((p) => p.categoryId === selectedCategory);
+  }, [products, selectedCategory]);
+
+  const category = categories.find((c) => c.id === selectedCategory);
 
   if (!settings) return null;
   const { home, faq, contact, identity, systemTexts } = settings;
@@ -235,6 +276,22 @@ export function HomeContent() {
           transition: { duration: 0.45, delay, ease: 'easeOut' as const },
         };
 
+  function productName(product: ProductListItem): string {
+    return typeof product.name === 'string' && product.name ? product.name : product.id;
+  }
+
+  function productDescription(product: ProductListItem): string | null {
+    return typeof product.description === 'string' && product.description.trim()
+      ? product.description
+      : null;
+  }
+
+  function productImage(product: ProductListItem): string | null {
+    return typeof product.image === 'string' && product.image
+      ? `/api/asset/${product.image}`
+      : null;
+  }
+
   return (
     <>
       {/* HERO — asimetris, kiri tipografi besar, kanan tiket status */}
@@ -270,46 +327,73 @@ export function HomeContent() {
               ) : null}
 
               <motion.div {...rise(0.18)} className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
-                <Link
-                  href="/#katalog"
-                  className="btn-accent inline-flex min-h-[50px] items-center gap-2 rounded-full px-7 text-sm font-medium"
-                >
-                  {home.ctaPrimary}
-                  <ArrowRight aria-hidden size={16} />
-                </Link>
-                <Link
-                  href="/register"
-                  className="group inline-flex min-h-[44px] items-center gap-1.5 border-b-2 border-line px-1 text-sm font-medium text-content transition-colors hover:border-accent"
-                >
-                  {home.ctaSecondary}
-                  <ArrowRight
-                    aria-hidden
-                    size={15}
-                    className="text-content-faint transition-all group-hover:translate-x-0.5 group-hover:text-accent"
-                  />
-                </Link>
+                {selectedCategory ? (
+                  <Link
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSelectedCategory(null);
+                    }}
+                    className="btn-accent inline-flex min-h-[50px] items-center gap-2 rounded-full px-7 text-sm font-medium"
+                  >
+                    <ArrowLeft aria-hidden size={16} />
+                    Kembali ke kategori
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/#katalog"
+                      className="btn-accent inline-flex min-h-[50px] items-center gap-2 rounded-full px-7 text-sm font-medium"
+                    >
+                      {home.ctaPrimary}
+                      <ArrowRight aria-hidden size={16} />
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="group inline-flex min-h-[44px] items-center gap-1.5 border-b-2 border-line px-1 text-sm font-medium text-content transition-colors hover:border-accent"
+                    >
+                      {home.ctaSecondary}
+                      <ArrowRight
+                        aria-hidden
+                        size={15}
+                        className="text-content-faint transition-all group-hover:translate-x-0.5 group-hover:text-accent"
+                      />
+                    </Link>
+                  </>
+                )}
+
+                {chips.length > 0 ? (
+                  <motion.ul
+                    {...rise(0.24)}
+                    className="mt-8 flex flex-wrap gap-2"
+                    aria-label="Pintasan"
+                  >
+                    {chips.map((chip) => (
+                      <li key={chip.text}>
+                        <Link
+                          href={chip.href}
+                          className="inline-flex min-h-[38px] items-center gap-2 rounded-md border border-line/70 bg-content/[0.02] px-3.5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-content-muted transition-colors hover:border-accent hover:text-content"
+                        >
+                          <span className="text-accent" aria-hidden>
+                            //
+                          </span>
+                          {chip.text}
+                        </Link>
+                      </li>
+                    ))}
+                  </motion.ul>
+                ) : null}
               </motion.div>
 
-              {chips.length > 0 ? (
-                <motion.ul
-                  {...rise(0.24)}
-                  className="mt-8 flex flex-wrap gap-2"
-                  aria-label="Pintasan"
-                >
-                  {chips.map((chip) => (
-                    <li key={chip.text}>
-                      <Link
-                        href={chip.href}
-                        className="inline-flex min-h-[38px] items-center gap-2 rounded-md border border-line/70 bg-content/[0.02] px-3.5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-content-muted transition-colors hover:border-accent hover:text-content"
-                      >
-                        <span className="text-accent" aria-hidden>
-                          //
-                        </span>
-                        {chip.text}
-                      </Link>
-                    </li>
-                  ))}
-                </motion.ul>
+              {assets.banner ? (
+                <motion.div {...rise(0.3)} className="mt-10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/api/asset/branding/banner"
+                    alt="Banner"
+                    className="w-full rounded-2xl border border-line object-cover"
+                  />
+                </motion.div>
               ) : null}
             </div>
 
@@ -338,14 +422,195 @@ export function HomeContent() {
         <Ticker items={tickerItems} duration="42s" />
       </section>
 
-      {/* KATALOG */}
+      {/* KATALOG — Kategori dulu, baru produk */}
       <section id="katalog" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6">
         <SectionHead
           num="01"
           title={systemTexts.menu.products}
-          desc="Semua produk di bawah dikelola langsung lewat dashboard admin — harga, gambar, dan statusnya selalu terbaru."
+          desc="Pilih kategori untuk melihat produk yang tersedia."
         />
-        <ProductCatalog />
+
+        {catalogState === 'loading' ? (
+          <div className="flex gap-2">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-9 w-24 rounded-full" />
+            ))}
+          </div>
+        ) : catalogState === 'error' ? (
+          <EmptyState
+            icon={RefreshCw}
+            title="Gagal memuat katalog"
+            description="Periksa koneksi lalu coba lagi."
+            action={
+              <Button variant="outline" size="sm" onClick={() => void loadCatalog()}>
+                Coba lagi
+              </Button>
+            }
+          />
+        ) : !selectedCategory ? (
+          <div className="mt-8">
+            {categories.length === 0 ? (
+              <EmptyState
+                icon={Folder}
+                title="Belum ada kategori"
+                description="Kategori produk akan tersedia setelah ditambahkan admin."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {categories.map((cat, index) => {
+                  const catProducts = products.filter((p) => p.categoryId === cat.id);
+                  return (
+                    <motion.div
+                      key={cat.id}
+                      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-30px' }}
+                      transition={{
+                        duration: 0.35,
+                        delay: Math.min(index * 0.06, 0.3),
+                        ease: 'easeOut',
+                      }}
+                      className="h-full"
+                    >
+                      <Link
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSelectedCategory(cat.id);
+                        }}
+                        className="block h-full"
+                      >
+                        <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
+                          <div className="relative aspect-[16/9] overflow-hidden rounded-t-3xl bg-content/10">
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Folder aria-hidden size={48} className="text-content-muted/50 group-hover:text-accent transition-colors" />
+                            </div>
+                            <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+                              {catProducts.length} produk
+                            </span>
+                          </div>
+                          <div className="p-5">
+                            <h3 className="text-lg font-semibold text-content">{cat.name}</h3>
+                            <p className="mt-1 text-sm text-content-muted">
+                              {catProducts.length} produk tersedia di kategori ini
+                            </p>
+                            <div className="mt-auto flex items-center gap-2 text-xs">
+                              <ArrowRight aria-hidden size={14} className="text-accent group-hover:translate-x-1 transition-transform" />
+                              <span className="font-medium text-content">Lihat produk</span>
+                            </div>
+                          </div>
+                        </article>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-8">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedCategory(null)}
+                >
+                  <ArrowLeft aria-hidden size={14} />
+                  Kembali ke kategori
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="label-mono">Kategori: {category?.name ?? 'Produk'}</p>
+                <h1 className="mt-0 text-2xl font-semibold text-content">
+                  {filtered.length} Produk
+                </h1>
+              </div>
+            </div>
+
+            {filtered.length === 0 ? (
+              <EmptyState
+                icon={PackageOpen}
+                title="Tidak ada produk pada kategori ini"
+                description="Coba pilih kategori lain."
+                action={
+                  <Button variant="outline" size="sm" onClick={() => setSelectedCategory(null)}>
+                    Kembali ke kategori
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((product, index) => {
+                  const description = productDescription(product);
+                  const card = (
+                    <article className="glass group flex h-full flex-col overflow-hidden rounded-2xl transition-all duration-200 hover:-translate-y-1 hover:shadow-soft">
+                      <div className="relative aspect-[16/10] overflow-hidden">
+                        <ProductImage
+                          src={productImage(product)}
+                          alt={productName(product)}
+                          className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                        <span className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
+                          Kategori
+                        </span>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-2 p-4">
+                        <h3 className="text-sm font-semibold text-content">{productName(product)}</h3>
+                        {description ? (
+                          <p className="line-clamp-2 text-xs leading-relaxed text-content-muted">
+                            {description}
+                          </p>
+                        ) : null}
+                        <div className="mt-auto flex items-center justify-between gap-3 pt-2">
+                          {typeof product.price === 'number' ? (
+                            <span className="text-base font-semibold text-accent">
+                              {formatRupiah(product.price)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-content-faint">Hubungi untuk harga</span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-xs text-content-muted transition-colors group-hover:text-accent">
+                            Lihat detail
+                            <ArrowRight
+                              aria-hidden
+                              size={13}
+                              className="transition-transform duration-200 group-hover:translate-x-0.5"
+                            />
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+
+                  return (
+                    <motion.div
+                      key={product.id}
+                      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-30px' }}
+                      transition={{
+                        duration: 0.35,
+                        delay: Math.min(index * 0.06, 0.3),
+                        ease: 'easeOut',
+                      }}
+                      className="h-full"
+                    >
+                      <Link
+                        href={`/produk/${product.id}`}
+                        className="block h-full"
+                        aria-label={`Lihat detail ${productName(product)}`}
+                      >
+                        {card}
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* CARA PESAN — struk kasir */}
