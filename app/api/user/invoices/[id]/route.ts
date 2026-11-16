@@ -38,6 +38,7 @@ export async function GET(
         fee: fresh?.fee ?? invoice.fee,
         total: fresh?.total ?? invoice.total,
         qrisImage: fresh?.qrisImage ?? invoice.qrisImage,
+        qrImageUrl: fresh?.qrisImage ?? invoice.qrisImage,
         paymentLink: fresh?.paymentLink ?? invoice.paymentLink,
         expiredAt: fresh?.expiredAt ?? invoice.expiredAt,
       },
