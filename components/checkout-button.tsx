@@ -39,7 +39,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   qris: 'Bayar langsung via QRIS',
 };
 
-export function CheckoutButton({ productId, kind, onPanelPaid }: { productId: string; kind: string; onPanelPaid?: (orderId: string) => void }) {
+export function CheckoutButton({ productId, kind }: { productId: string; kind: string }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -140,8 +140,8 @@ export function CheckoutButton({ productId, kind, onPanelPaid }: { productId: st
         return;
       }
 
-      if (data.ok && data.orderId && kind === 'panel' && onPanelPaid) {
-        onPanelPaid(data.orderId);
+      if (data.ok && data.orderId && kind === 'panel') {
+        window.location.href = `/dashboard/panels/${data.orderId}`;
         return;
       }
 

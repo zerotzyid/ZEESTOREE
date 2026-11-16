@@ -226,11 +226,6 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
               <CheckoutButton
                 productId={id}
                 kind={typeof product.kind === 'string' ? product.kind : 'lainnya'}
-                onPanelPaid={(panelOrderId) => {
-                  if (panelOrderId) {
-                    window.location.href = `/dashboard/panels/${panelOrderId}`;
-                  }
-                }}
               />
               <p className="text-xs text-content-faint">
                 Butuh bantuan?{' '}
