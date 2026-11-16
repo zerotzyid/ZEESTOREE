@@ -234,6 +234,14 @@ export async function processInvoice(
     [`invoices/${invoiceId}/paidAt`]: check.completed_at ?? null,
     [`invoices/${invoiceId}/lockedAt`]: null,
     [`invoices/${invoiceId}/error`]: null,
+    // Update qrisImage dan paymentLink dari Pixpayz checkInvoice (bisa berubah)
+    [`invoices/${invoiceId}/qrisImage`]: check.qris_image ?? inv.qrisImage,
+    [`invoices/${invoiceId}/paymentLink`]: check.payment_link ?? inv.paymentLink,
+    // Update amount/fee/total dari Pixpayz check (bisa berubah)
+    [`invoices/${invoiceId}/amount`]: check.amount ?? inv.amount,
+    [`invoices/${invoiceId}/fee`]: check.fee ?? inv.fee,
+    [`invoices/${invoiceId}/total`]: check.total ?? inv.total,
+    [`invoices/${invoiceId}/expiredAt`]: parsePixpayzDate(check.expired_at) ?? inv.expiredAt,
   };
 
   if (inv.purpose === 'deposit') {

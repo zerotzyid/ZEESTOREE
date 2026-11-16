@@ -54,26 +54,23 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const downloadQRIS = async (qrString: string | null) => {
     if (!qrString) return;
     try {
-      const jpgUrl = qrString.replace(/\.(png|webp|jpeg)$/i, '.jpg');
+      // Fetch image as blob to bypass CORS, then download
+      const res = await fetch(qrString);
+      if (!res.ok) throw new Error('Gagal mengambil gambar QRIS.');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = jpgUrl;
+      link.href = blobUrl;
       link.download = 'qris-pembayaran.jpg';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
       toast.success('QRIS berhasil diunduh.');
     } catch {
-      try {
-        const link = document.createElement('a');
-        link.href = qrString;
-        link.download = 'qris-pembayaran.jpg';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success('QRIS berhasil diunduh.');
-      } catch {
-        toast.error('Gagal mengunduh QRIS.');
-      }
+      // Fallback: open image in new tab so user can save manually
+      window.open(qrString, '_blank');
+      toast.error('Gagal mengunduh otomatis. Gambar dibuka di tab baru - klik kanan lalu simpan.');
     }
   };
 
