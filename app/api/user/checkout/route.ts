@@ -84,6 +84,22 @@ export async function POST(request: Request): Promise<Response> {
     }
     const price = typeof product.price === 'number' ? product.price : 0;
 
+    // Cek batas maks produk per user
+    const settings = await getSettings();
+    const maxProductsPerUser = settings.limits?.maxProductsPerUser ?? 5;
+    const existingOrders = await get<Record<string, unknown>>('orders');
+    const activeOrders = Object.values(existingOrders ?? {}).filter(
+      (o: unknown) => {
+        const order = o as { userId?: string; status?: string };
+        return order.userId === userKey && ['pending', 'paid', 'processing', 'active'].includes(order.status ?? '');
+      }
+    );
+    if (activeOrders.length >= maxProductsPerUser) {
+      return Response.json({
+        error: `Anda telah mencapai batas maksimal ${maxProductsPerUser} produk aktif. Selesaikan atau batalkan pesanan lain sebelum membeli baru.`,
+      }, { status: 403 });
+    }
+
     // Produk reseller: TIDAK memakai saldo — QRIS dibayar langsung ke reseller.
     if (product.kind === 'reseller') {
       return await createResellerOrder({

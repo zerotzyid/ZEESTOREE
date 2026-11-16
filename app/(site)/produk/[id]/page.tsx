@@ -156,7 +156,11 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl">{name}</h1>
             {price !== null ? (
-              <p className="text-3xl font-semibold text-accent">{formatRupiah(price)}</p>
+              price === 0 ? (
+                <p className="text-3xl font-semibold text-emerald-500">Gratis</p>
+              ) : (
+                <p className="text-3xl font-semibold text-accent">{formatRupiah(price)}</p>
+              )
             ) : (
               <p className="text-sm text-content-muted">Hubungi kami untuk harga.</p>
             )}

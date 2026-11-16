@@ -70,6 +70,9 @@ export type Settings = {
     banner: string;
     donationQrLogo: string;
   };
+  limits: {
+    maxProductsPerUser: number;
+  };
   oauth: {
     enabled: boolean;
     providers: Record<string, { enabled: boolean; clientId: string; clientSecret: string; name: string; icon?: string }>;
@@ -166,6 +169,9 @@ export const DEFAULT_SETTINGS: Settings = {
     favicon: '',
     banner: '',
     donationQrLogo: '',
+  },
+  limits: {
+    maxProductsPerUser: 5,
   },
   oauth: {
     enabled: false,

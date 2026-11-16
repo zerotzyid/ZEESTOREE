@@ -240,6 +240,7 @@ export function SettingsClient({ initial }: Props) {
           <TabsTrigger value="donation">Donasi</TabsTrigger>
           <TabsTrigger value="oauth">OAuth Login</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>
+          <TabsTrigger value="limits">Batas Produk</TabsTrigger>
         </TabsList>
 
         {/* IDENTITAS */}
@@ -1034,6 +1035,38 @@ export function SettingsClient({ initial }: Props) {
             </PreviewBox>
 
             <SaveButton section="branding" saving={saving} onClick={(s) => void save(s)} />
+          </div>
+        </TabsContent>
+
+        {/* LIMITS */}
+        <TabsContent value="limits">
+          <div className="flex flex-col gap-4">
+            <div className="rounded-2xl border border-line p-4">
+              <p className="label-mono mb-2">Batas Produk per Pengguna</p>
+              <p className="text-xs text-content-faint">
+                Batasi jumlah produk aktif (pending, paid, processing, active) yang dapat dimiliki setiap pengguna.
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <Input
+                  id="limits-max-products"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={String(draft.limits?.maxProductsPerUser ?? 5)}
+                  onChange={(e) => {
+                    setSection('limits', {
+                      ...draft.limits,
+                      maxProductsPerUser: Number(e.target.value),
+                    } as Settings['limits']);
+                  }}
+                  className="w-24"
+                />
+                <span className="text-sm text-content-faint">produk aktif maksimal per pengguna</span>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-line/60 flex justify-end">
+              <SaveButton section="limits" saving={saving} onClick={(s) => void save(s)} />
+            </div>
           </div>
         </TabsContent>
       </Tabs>

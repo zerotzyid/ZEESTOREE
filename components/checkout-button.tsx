@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X, Mail } from 'lucide-react';
+import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X, Mail, Server, CheckCircle2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,8 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('saldo');
   const [cancelBusy, setCancelBusy] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installProgress, setInstallProgress] = useState(0);
 
   const downloadQRIS = async (qrString: string | null) => {
     if (!qrString) return;
@@ -140,22 +142,41 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         return;
       }
 
-      if (data.ok && data.orderId && kind === 'panel') {
-        window.location.href = `/dashboard/panels/${data.orderId}`;
-        return;
-      }
-
       setResult(data);
       toast.success(data.message);
 
+      // Jika pembelian panel via QRIS, buka dialog pembayaran
       if (data.ok && (data.qrImageUrl || data.qrString || data.invoiceUrl)) {
         setQrDialogOpen(true);
+        return;
+      }
+
+      // Jika pembelian panel via saldo, langsung redirect ke manajemen panel
+      if (data.ok && data.orderId && kind === 'panel') {
+        window.location.href = `/dashboard/panels/${data.orderId}`;
+        return;
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Checkout gagal.');
     } finally {
       setBusy(false);
     }
+  };
+
+  // Simulasi proses instalasi panel setelah pembayaran berhasil
+  const handleInstallComplete = (orderId: string) => {
+    setInstalling(true);
+    setInstallProgress(0);
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 10;
+      setInstallProgress(progress);
+      if (progress >= 100) {
+        clearInterval(interval);
+        setInstalling(false);
+        window.location.href = `/dashboard/panels/${orderId}`;
+      }
+    }, 200);
   };
 
   // Error result
@@ -183,7 +204,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     );
   }
 
-  // Panel success result
+  // Panel success result - redirect to panel management
   if (result && result.ok && result.panelUrl) {
     return (
       <div className="flex flex-col gap-3">
@@ -261,7 +282,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     return (
       <>
         <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Pembayaran QRIS</DialogTitle>
               <DialogDescription>
@@ -348,6 +369,26 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
           </DialogContent>
         </Dialog>
       </>
+    );
+  }
+
+  // Panel installing animation
+  if (installing && result) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-8">
+        <Server className="animate-spin text-4xl text-accent" />
+        <h3 className="text-lg font-semibold text-content">Menginstall Server Panel</h3>
+        <p className="text-sm text-content-muted">
+          Mohon tunggu, server panel Anda sedang dikonfigurasi...
+        </p>
+        <div className="w-full h-4 bg-content/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-accent transition-all duration-300"
+            style={{ width: `${installProgress}%` }}
+          />
+        </div>
+        <p className="text-xs text-content-faint">{installProgress}%</p>
+      </div>
     );
   }
 

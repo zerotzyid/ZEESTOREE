@@ -126,6 +126,10 @@ export const integrationsSettingsSchema = z.object({
   axmisuApiKey: shortText(200),
 });
 
+export const limitsSettingsSchema = z.object({
+  maxProductsPerUser: z.number().int().min(1).max(100),
+});
+
 export const settingsPatchSchema = z
   .object({
     identity: identitySettingsSchema.optional(),
@@ -138,6 +142,7 @@ export const settingsPatchSchema = z
     operational: operationalSettingsSchema.optional(),
     systemTexts: systemTextsSettingsSchema.optional(),
     integrations: integrationsSettingsSchema.optional(),
+    limits: limitsSettingsSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'Tidak ada bagian yang dikirim.' });
 
