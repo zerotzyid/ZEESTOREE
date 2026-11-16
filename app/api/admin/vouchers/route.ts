@@ -17,7 +17,7 @@ function generateVoucherCode(length = 8): string {
 
 const createSchema = z.object({
   type: z.enum(['balance', 'discount', 'product']),
-  value: z.number().positive(),
+  value: z.number().int().min(0, 'Nilai voucher minimal 0 (gratis)'),
   productId: z.string().optional(),
   discountPercent: z.number().int().min(1).max(100).optional(),
   maxUses: z.number().int().positive().max(10000),

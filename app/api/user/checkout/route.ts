@@ -147,7 +147,12 @@ export async function POST(request: Request): Promise<Response> {
     // 2. Handle payment berdasarkan method
     let invoiceId: string | null = null;
     
-    if (paymentMethod === 'saldo' || paymentMethod === 'voucher') {
+    const isFree = finalPrice <= 0;
+    
+    if (isFree) {
+      // Gratis (produk harga 0 atau voucher 100% off) — tidak potong saldo, tidak buat invoice QRIS
+      newSaldo = buyer.saldo;
+    } else if (paymentMethod === 'saldo' || paymentMethod === 'voucher') {
       // Pakai saldo (setelah voucher discount jika ada)
       const amountToDeduct = finalPrice;
       
