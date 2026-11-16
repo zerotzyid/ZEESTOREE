@@ -32,35 +32,39 @@ export async function uploadImage(dataUrl: string): Promise<CdnUploadResult> {
   // Buat File dari buffer (nama acak karena CDNZero akan generate sendiri)
   const file = new File([buffer], `upload-${Date.now()}.webp`, { type: 'image/webp' });
 
-  const formData = new FormData();
-  formData.append('file', file);
+  // Coba beberapa nama field yang umum digunakan API upload gambar
+  const fieldNames = ['image', 'file', 'upload'];
+  let lastError = '';
 
-  try {
-    const res = await fetch(`${BASE_URL}/api/upload`, {
-      method: 'POST',
-      body: formData,
-      // Jangan set Content-Type manually — biar fetch set boundary untuk multipart
-    });
+  for (const fieldName of fieldNames) {
+    const formData = new FormData();
+    formData.append(fieldName, file);
 
-    const data = (await res.json()) as CdnUploadResult & { error?: string };
+    try {
+      const res = await fetch(`${BASE_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (!res.ok || !data.success || !data.url) {
-      return {
-        success: false,
-        message: data.error ?? data.message ?? `Gagal unggah ke CDN (HTTP ${res.status}).`,
-      };
+      const data = (await res.json().catch(() => ({}))) as CdnUploadResult & { error?: string };
+
+      if (res.ok && data.success && data.url) {
+        return {
+          success: true,
+          url: data.url,
+          file_name: data.file_name,
+          size: data.size,
+        };
+      }
+
+      lastError = data.error ?? data.message ?? `HTTP ${res.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Request gagal.';
     }
-
-    return {
-      success: true,
-      url: data.url,
-      file_name: data.file_name,
-      size: data.size,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Gagal terhubung ke CDN.',
-    };
   }
+
+  return {
+    success: false,
+    message: lastError ?? 'Gagal unggah ke CDNZero.',
+  };
 }

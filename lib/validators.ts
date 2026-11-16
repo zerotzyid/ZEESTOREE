@@ -151,7 +151,7 @@ export const assetUploadSchema = z.object({
   dataUrl: z
     .string()
     .regex(DATA_URL_RE, 'Format gambar harus PNG, JPG, atau WEBP (data URL base64).')
-    .max(800_000, 'Gambar terlalu besar setelah kompresi.'),
+    .max(1_200_000, 'Gambar terlalu besar setelah kompresi.'),
 });
 
 /** Jenis produk — nilai mengikuti cakupan PRD (panel, produk digital, VPS trial, lainnya). */
