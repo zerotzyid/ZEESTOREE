@@ -206,7 +206,7 @@ export const productPatchSchema = productCreateSchema
   .extend({
     image: z
       .string()
-      .regex(/^products\/[a-z0-9-]{1,60}$/, 'Nama gambar produk tidak valid.')
+      .regex(/^products\/[a-zA-Z0-9_.\-/]{1,60}$/, 'Nama gambar produk tidak valid. Contoh: products/sepatu-merah.')
       .nullable()
       .optional(),
   })
