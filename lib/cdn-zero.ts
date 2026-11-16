@@ -2,6 +2,11 @@
  * Klien CDNZero — https://api-cdnzero.vercel.app
  * Digunakan untuk unggah gambar ke CDN publik agar nama file bebas
  * (tidak terbatas pada branding/ atau products/).
+ *
+ * Endpoint: POST /api/upload
+ * Content-Type: multipart/form-data
+ * Field: file (required)
+ * Response: { success, data: { url, fileName, fileSize, uploadedAt } }
  */
 const BASE_URL = 'https://api-cdnzero.vercel.app';
 
@@ -12,72 +17,6 @@ export type CdnUploadResult = {
   size?: number;
   message?: string;
 };
-
-/**
- * Coba unggah dengan multipart form data (Multer/Express style).
- */
-async function tryMultipart(fieldName: string, file: File): Promise<{ ok: boolean; data?: any; status?: number }> {
-  const formData = new FormData();
-  formData.append(fieldName, file);
-
-  try {
-    const res = await fetch(`${BASE_URL}/api/upload`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    let data: any = {};
-    try {
-      data = await res.json();
-    } catch {
-      data = { text: await res.text().catch(() => '') };
-    }
-
-    return {
-      ok: res.ok && data.success && !!data.url,
-      data,
-      status: res.status,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      data: { error: error instanceof Error ? error.message : 'Request gagal.' },
-      status: 0,
-    };
-  }
-}
-
-/**
- * Coba unggah dengan JSON body.
- */
-async function tryJson(fieldName: string, base64: string): Promise<{ ok: boolean; data?: any; status?: number }> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/upload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [fieldName]: base64 }),
-    });
-
-    let data: any = {};
-    try {
-      data = await res.json();
-    } catch {
-      data = { text: await res.text().catch(() => '') };
-    }
-
-    return {
-      ok: res.ok && data.success && !!data.url,
-      data,
-      status: res.status,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      data: { error: error instanceof Error ? error.message : 'Request gagal.' },
-      status: 0,
-    };
-  }
-}
 
 /**
  * Mengunggah data URL gambar (base64 WEBP/PNG/JPG) ke CDNZero.
@@ -98,48 +37,40 @@ export async function uploadImage(dataUrl: string): Promise<CdnUploadResult> {
   // Buat File dari buffer
   const file = new File([buffer], `upload-${Date.now()}.webp`, { type: 'image/webp' });
 
-  // Nama field yang umum digunakan oleh API upload (Multer/Express)
-  const fieldNames = ['file', 'image', 'upload', 'files', 'image[]', 'file[]'];
+  // CDNZero API expects field name 'file' (singular)
+  const formData = new FormData();
+  formData.append('file', file);
 
-  let lastError = '';
-  let lastStatus = 0;
+  try {
+    const res = await fetch(`${BASE_URL}/api/upload`, {
+      method: 'POST',
+      body: formData,
+    });
 
-  // 1. Coba multipart dengan berbagai nama field
-  for (const fieldName of fieldNames) {
-    const result = await tryMultipart(fieldName, file);
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = { text: await res.text().catch(() => '') };
+    }
 
-    if (result.ok && result.data?.url) {
+    if (res.ok && data.success && data.data?.url) {
       return {
         success: true,
-        url: result.data.url,
-        file_name: result.data.file_name,
-        size: result.data.size,
+        url: data.data.url,
+        file_name: data.data.fileName,
+        size: data.data.fileSize,
       };
     }
 
-    lastError = result.data?.error ?? result.data?.message ?? result.data?.text ?? `HTTP ${result.status}`;
-    lastStatus = result.status ?? 0;
+    return {
+      success: false,
+      message: data.message ?? data.error ?? data.text ?? `Gagal unggah ke CDNZero (HTTP ${res.status}).`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Gagal terhubung ke CDNZero.',
+    };
   }
-
-  // 2. Coba JSON body dengan berbagai nama field
-  for (const fieldName of fieldNames) {
-    const result = await tryJson(fieldName, base64);
-
-    if (result.ok && result.data?.url) {
-      return {
-        success: true,
-        url: result.data.url,
-        file_name: result.data.file_name,
-        size: result.data.size,
-      };
-    }
-
-    lastError = result.data?.error ?? result.data?.message ?? result.data?.text ?? `HTTP ${result.status}`;
-    lastStatus = result.status ?? 0;
-  }
-
-  return {
-    success: false,
-    message: lastError ?? `Gagal unggah ke CDNZero (HTTP ${lastStatus}). Coba lagi nanti.`,
-  };
 }
