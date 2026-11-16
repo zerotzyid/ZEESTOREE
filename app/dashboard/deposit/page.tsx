@@ -156,13 +156,9 @@ export default function DepositPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
       });
-      const data = (await res.json()) as { ok?: boolean; redirectToPay?: string; invoiceId?: string; error?: string };
+      const data = (await res.json()) as { ok?: boolean; qrisImage?: string; qrString?: string | null; invoiceUrl?: string | null; total?: number; expiredAt?: number; status?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Gagal membuat invoice.');
-      // Arahkan ke halaman pembayaran /pay/
-      if (data.redirectToPay) {
-        window.location.href = data.redirectToPay;
-        return;
-      }
+      // Tampilkan QRIS langsung tanpa redirect ke /pay/
       setAmountInput('');
       applyInvoice(data as Invoice);
     } catch (error) {

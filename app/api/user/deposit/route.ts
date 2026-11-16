@@ -56,12 +56,17 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const invoice = await createDepositInvoice(session.username, parsed.data.amount);
-    // Arahkan ke halaman pembayaran /pay/
+    // Kembalikan data QRIS langsung tanpa redirect ke /pay/
     return Response.json({
       ok: true,
-      redirectToPay: `/pay/${invoice.invoiceId}`,
       invoiceId: invoice.invoiceId,
-      message: 'Invoice QRIS dibuat. Lanjutkan ke halaman pembayaran.',
+      qrisImage: invoice.qrisImage,
+      qrString: invoice.paymentLink,
+      invoiceUrl: invoice.paymentLink,
+      total: invoice.total,
+      expiredAt: invoice.expiredAt,
+      status: 'pending',
+      message: 'Silakan bayar via QRIS. Status akan update otomatis setelah pembayaran.',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Gagal membuat invoice.';

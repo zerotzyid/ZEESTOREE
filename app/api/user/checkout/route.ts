@@ -192,12 +192,18 @@ export async function POST(request: Request): Promise<Response> {
         [`orders/${orderId}/invoiceId`]: invoiceId,
       } as Record<string, Json>);
 
-      // Arahkan ke halaman pembayaran /pay/
+      // Kembalikan data QRIS langsung tanpa redirect ke /pay/
       return Response.json({
         ok: true,
         orderId,
-        redirectToPay: `/pay/${invoice.invoiceId}`,
-        message: 'Silakan lanjutkan ke halaman pembayaran QRIS.',
+        invoiceId,
+        qrisImage: invoice.qrisImage,
+        qrString: invoice.paymentLink,
+        invoiceUrl: invoice.paymentLink,
+        total: invoice.total,
+        expiredAt: invoice.expiredAt,
+        status: 'pending_payment',
+        message: 'Silakan bayar via QRIS. Status akan update otomatis setelah pembayaran.',
       });
     }
 

@@ -204,11 +204,7 @@ export function DonationClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Gagal membuat invoice.');
-      // Arahkan ke halaman pembayaran /pay/
-      if (data.redirectToPay) {
-        window.location.href = data.redirectToPay;
-        return;
-      }
+      // Tampilkan QRIS langsung tanpa redirect ke /pay/
       setAmountInput('');
       applyInvoice(data);
     } catch (error) {

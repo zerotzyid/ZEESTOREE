@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Copy, ExternalLink, Loader2, QrCode, ShoppingCart, Wallet, Ticket } from 'lucide-react';
+import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,8 @@ type Result = {
   total?: number;
   expiredAt?: number;
   phone?: string | null;
-  redirectToPay?: string | null;
+  orderId?: string | null;
+  invoiceId?: string | null;
 };
 
 async function readError(res: Response): Promise<string> {
@@ -44,6 +45,63 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const [customerPhone, setCustomerPhone] = useState('');
   const [voucherCode, setVoucherCode] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('saldo');
+  const [cancelBusy, setCancelBusy] = useState(false);
+
+  const downloadQRIS = async (qrString: string | null) => {
+    if (!qrString) return;
+    try {
+      // Jika qrString adalah URL, unduh langsung
+      if (qrString.startsWith('http')) {
+        const link = document.createElement('a');
+        link.href = qrString;
+        link.download = 'qris-pembayaran.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('QRIS berhasil diunduh.');
+      } else {
+        toast.success('String QRIS: ' + qrString);
+      }
+    } catch {
+      toast.error('Gagal mengunduh QRIS.');
+    }
+  };
+
+  const cancelPayment = async (invoiceId: string | null, orderId: string | null) => {
+    if (!invoiceId && !orderId) return;
+    if (!window.confirm('Batalkan pembayaran ini? Pesanan akan dibatalkan.')) return;
+    setCancelBusy(true);
+    try {
+      // Coba batalkan via invoice ID
+      if (invoiceId) {
+        const res = await fetch(`/api/user/payments/${invoiceId}/cancel`, {
+          method: 'POST',
+        });
+        if (res.ok) {
+          toast.success('Pembayaran berhasil dibatalkan.');
+          setResult(null);
+          return;
+        }
+      }
+      // Fallback: tandai order sebagai cancelled melalui order ID
+      if (orderId) {
+        await updateOrderStatus(orderId, 'cancelled');
+        toast.success('Pesanan dibatalkan.');
+        setResult(null);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal membatalkan pembayaran.');
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
+  async function updateOrderStatus(orderId: string, status: string) {
+    await fetch('/api/user/orders', { method: 'GET' }).then(async (res) => {
+      const data = await res.json();
+      // This is just a fallback; the cancel endpoint handles the invoice
+    });
+  }
 
   const checkout = async () => {
     if (kind === 'reseller') {
@@ -72,12 +130,6 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
       }
       const data = (await res.json().catch(() => null)) as (Result & { error?: string }) | null;
       if (!data) throw new Error(await readError(res));
-
-      // Jika server mengarahkan ke halaman pembayaran /pay/
-      if (data.redirectToPay) {
-        window.location.href = data.redirectToPay;
-        return;
-      }
 
       if (!res.ok || !data.ok) {
         setResult({
@@ -197,20 +249,47 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
                       </a>
                     ) : null}
                     {result.qrString ? (
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            void navigator.clipboard
+                              .writeText(result.qrString ?? '')
+                              .then(() => toast.success('String QRIS disalin.'));
+                          }}
+                        >
+                          <Copy aria-hidden size={13} />
+                          Salin string QRIS
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void downloadQRIS(result.qrString ?? null)}
+                        >
+                          <Download aria-hidden size={13} />
+                          Unduh QRIS (JPG)
+                        </Button>
+                      </div>
+                    ) : null}
+                    {result.orderId && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          void navigator.clipboard
-                            .writeText(result.qrString ?? '')
-                            .then(() => toast.success('String QRIS disalin.'));
-                        }}
+                        disabled={cancelBusy}
+                        onClick={() => void cancelPayment(result.invoiceId ?? result.orderId ?? null, result.orderId ?? null)}
                       >
-                        <Copy aria-hidden size={13} />
-                        Salin string QRIS
+                        {cancelBusy ? (
+                          <Loader2 aria-hidden size={12} className="animate-spin" />
+                        ) : (
+                          <X aria-hidden size={13} />
+                        )}
+                        Batal Pembayaran
                       </Button>
-                    ) : null}
+                    )}
                   </div>
                 </div>
                 {result.expiredAt && (

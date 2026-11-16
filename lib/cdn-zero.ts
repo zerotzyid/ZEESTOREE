@@ -33,7 +33,7 @@ export async function uploadImage(dataUrl: string): Promise<CdnUploadResult> {
   const file = new File([buffer], `upload-${Date.now()}.webp`, { type: 'image/webp' });
 
   // Coba beberapa nama field yang umum digunakan API upload gambar
-  const fieldNames = ['image', 'file', 'upload'];
+  const fieldNames = ['image', 'file', 'upload', 'files'];
   let lastError = '';
 
   for (const fieldName of fieldNames) {
