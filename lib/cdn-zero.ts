@@ -14,6 +14,72 @@ export type CdnUploadResult = {
 };
 
 /**
+ * Coba unggah dengan multipart form data (Multer/Express style).
+ */
+async function tryMultipart(fieldName: string, file: File): Promise<{ ok: boolean; data?: any; status?: number }> {
+  const formData = new FormData();
+  formData.append(fieldName, file);
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = { text: await res.text().catch(() => '') };
+    }
+
+    return {
+      ok: res.ok && data.success && !!data.url,
+      data,
+      status: res.status,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      data: { error: error instanceof Error ? error.message : 'Request gagal.' },
+      status: 0,
+    };
+  }
+}
+
+/**
+ * Coba unggah dengan JSON body.
+ */
+async function tryJson(fieldName: string, base64: string): Promise<{ ok: boolean; data?: any; status?: number }> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [fieldName]: base64 }),
+    });
+
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = { text: await res.text().catch(() => '') };
+    }
+
+    return {
+      ok: res.ok && data.success && !!data.url,
+      data,
+      status: res.status,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      data: { error: error instanceof Error ? error.message : 'Request gagal.' },
+      status: 0,
+    };
+  }
+}
+
+/**
  * Mengunggah data URL gambar (base64 WEBP/PNG/JPG) ke CDNZero.
  * Mengembalikan URL publik yang dapat langsung diakses.
  */
@@ -33,102 +99,43 @@ export async function uploadImage(dataUrl: string): Promise<CdnUploadResult> {
   const file = new File([buffer], `upload-${Date.now()}.webp`, { type: 'image/webp' });
 
   // Nama field yang umum digunakan oleh API upload (Multer/Express)
-  const fieldNames = [
-    'file',
-    'image',
-    'upload',
-    'files',
-    'image[]',
-    'file[]',
-    'photos',
-    'photo',
-    'avatar',
-    'media',
-    'attachment',
-    'content',
-    'data',
-    'base64',
-    'upfile',
-    'userfile',
-    'myfile',
-    'thefile',
-    'newfile',
-    'img',
-    'pic',
-    'uploadfile',
-    'upload_image',
-    'upload_file',
-  ];
+  const fieldNames = ['file', 'image', 'upload', 'files', 'image[]', 'file[]'];
 
   let lastError = '';
   let lastStatus = 0;
 
-  // Coba multipart dengan berbagai nama field pada endpoint /api/upload
+  // 1. Coba multipart dengan berbagai nama field
   for (const fieldName of fieldNames) {
-    const formData = new FormData();
-    formData.append(fieldName, file);
+    const result = await tryMultipart(fieldName, file);
 
-    try {
-      const res = await fetch(`${BASE_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        data = { text: await res.text().catch(() => '') };
-      }
-
-      if (res.ok && data.success && data.url) {
-        return {
-          success: true,
-          url: data.url,
-          file_name: data.file_name,
-          size: data.size,
-        };
-      }
-
-      lastError = data.error ?? data.message ?? data.text ?? `HTTP ${res.status}`;
-      lastStatus = res.status;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : 'Request gagal.';
+    if (result.ok && result.data?.url) {
+      return {
+        success: true,
+        url: result.data.url,
+        file_name: result.data.file_name,
+        size: result.data.size,
+      };
     }
+
+    lastError = result.data?.error ?? result.data?.message ?? result.data?.text ?? `HTTP ${result.status}`;
+    lastStatus = result.status ?? 0;
   }
 
-  // Coba endpoint upload-multiple
+  // 2. Coba JSON body dengan berbagai nama field
   for (const fieldName of fieldNames) {
-    const formData = new FormData();
-    formData.append(fieldName, file);
+    const result = await tryJson(fieldName, base64);
 
-    try {
-      const res = await fetch(`${BASE_URL}/api/upload-multiple`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        data = { text: await res.text().catch(() => '') };
-      }
-
-      if (res.ok && data.success && data.url) {
-        return {
-          success: true,
-          url: data.url,
-          file_name: data.file_name,
-          size: data.size,
-        };
-      }
-
-      lastError = data.error ?? data.message ?? data.text ?? `HTTP ${res.status}`;
-      lastStatus = res.status;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : 'Request gagal.';
+    if (result.ok && result.data?.url) {
+      return {
+        success: true,
+        url: result.data.url,
+        file_name: result.data.file_name,
+        size: result.data.size,
+      };
     }
+
+    lastError = result.data?.error ?? result.data?.message ?? result.data?.text ?? `HTTP ${result.status}`;
+    lastStatus = result.status ?? 0;
   }
 
   return {

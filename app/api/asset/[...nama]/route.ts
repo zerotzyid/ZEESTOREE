@@ -26,7 +26,12 @@ export async function GET(
       return new Response('Aset tidak ditemukan.', { status: 404 });
     }
 
-    // Jika disimpan sebagai data URL (base64)
+    // Jika ada URL eksternal (mis. CDNZero), redirect ke sana
+    if (typeof record.url === 'string' && record.url.startsWith('http')) {
+      return Response.redirect(record.url, 302);
+    }
+
+    // Jika disimpan sebagai data URL (base64) di RTDB
     if (typeof record.dataUrl === 'string' && record.dataUrl.startsWith('data:image/')) {
       const comma = record.dataUrl.indexOf(',');
       const header = record.dataUrl.slice(0, comma);
@@ -41,11 +46,6 @@ export async function GET(
           'X-Content-Type-Options': 'nosniff',
         },
       });
-    }
-
-    // Jika disimpan sebagai URL eksternal (mis. CDNZero)
-    if (typeof record.url === 'string' && record.url.startsWith('http')) {
-      return Response.redirect(record.url, 302);
     }
 
     return new Response('Aset tidak valid.', { status: 404 });
