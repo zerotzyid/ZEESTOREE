@@ -51,11 +51,20 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const [installing, setInstalling] = useState(false);
   const [installProgress, setInstallProgress] = useState(0);
 
+    // Build absolute CDNZero URL if relative path
+  const cdnUrl = (path: string | null) => {
+    if (!path) return '';
+    return path.startsWith('http')
+      ? path
+      : `https://api-cdnzero.vercel.app${path.startsWith('/') ? path : '/' + path}`;
+  };
+
   const downloadQRIS = async (qrString: string | null) => {
     if (!qrString) return;
     try {
+      const imageUrl = cdnUrl(qrString);
       // Fetch image as blob to bypass CORS, then download
-      const res = await fetch(qrString);
+      const res = await fetch(imageUrl);
       if (!res.ok) throw new Error('Gagal mengambil gambar QRIS.');
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -69,7 +78,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
       toast.success('QRIS berhasil diunduh.');
     } catch {
       // Fallback: open image in new tab so user can save manually
-      window.open(qrString, '_blank');
+      window.open(cdnUrl(qrString), '_blank');
       toast.error('Gagal mengunduh otomatis. Gambar dibuka di tab baru - klik kanan lalu simpan.');
     }
   };
@@ -294,7 +303,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
               </p>
               {r.qrImageUrl ? (
                 <img
-                  src={r.qrImageUrl}
+                  src={cdnUrl(r.qrImageUrl)}
                   alt="QRIS pembayaran"
                   className="w-64 h-64 rounded-xl border border-line bg-white p-2 object-contain"
                 />

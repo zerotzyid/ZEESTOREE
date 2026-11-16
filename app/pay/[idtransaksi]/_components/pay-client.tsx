@@ -54,6 +54,14 @@ function formatCountdown(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+// Build absolute CDNZero URL if relative path
+const cdnUrl = (path: string | null) => {
+  if (!path) return '';
+  return path.startsWith('http')
+    ? path
+    : `https://api-cdnzero.vercel.app${path.startsWith('/') ? path : '/' + path}`;
+};
+
 function isProductPurchase(invoice: Invoice): boolean {
   return invoice.purpose === 'direct_purchase' || !!invoice.orderId;
 }
@@ -384,7 +392,7 @@ export function PayPageClient({ idtransaksi }: { idtransaksi: string }) {
           <div className="w-full flex justify-center">
             {invoice.qrisImage ? (
               <img
-                src={invoice.qrisImage}
+                src={cdnUrl(invoice.qrisImage)}
                 alt="Kode QRIS pembayaran"
                 className="w-full max-w-[320px] rounded-2xl border border-line bg-white p-2 shadow-sm"
               />
