@@ -1,8 +1,6 @@
 import { get, remove, set } from '@/lib/rtdb';
 import { requireAdmin } from '@/lib/authz';
 import { assetUploadSchema } from '@/lib/validators';
-import { validateImageDataUrl } from '@/lib/image';
-import { uploadImage } from '@/lib/cdn-zero';
 import { writeLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -28,33 +26,15 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // Validasi format dan ukuran data URL (gunakan kind 'default' untuk bebas nama)
-  const validation = validateImageDataUrl(parsed.data.dataUrl, 'default');
-  if (!validation.ok) {
-    return Response.json({ error: validation.error }, { status: 400 });
-  }
-
   try {
-    // Unggah ke CDNZero
-    const cdnResult = await uploadImage(parsed.data.dataUrl);
-    if (!cdnResult.success || !cdnResult.url) {
-      return Response.json({ error: cdnResult.message ?? 'Gagal unggah ke CDN.' }, { status: 500 });
-    }
-
-    // Simpan mapping nama -> URL CDN di RTDB untuk pelacakan
-    await set(`assets/${parsed.data.name}`, {
-      url: cdnResult.url,
-      file_name: cdnResult.file_name,
-      size: cdnResult.size,
-      uploadedAt: Date.now(),
-      uploadedBy: session.username,
-    } as never);
+    // Simpan data URL gambar ke RTDB dengan nama aset bebas
+    await set(`assets/${parsed.data.name}`, parsed.data.dataUrl);
     await writeLog({
       actor: session.username,
       action: 'asset.upload',
-      detail: `${parsed.data.name} -> ${cdnResult.url} (${validation.bytes} byte)`,
+      detail: `${parsed.data.name}`,
     });
-    return Response.json({ ok: true, url: cdnResult.url, name: parsed.data.name });
+    return Response.json({ ok: true, url: `/api/asset/${parsed.data.name}`, name: parsed.data.name });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Gagal menyimpan gambar.';
     return Response.json({ error: message }, { status: 500 });
