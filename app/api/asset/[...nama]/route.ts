@@ -2,7 +2,7 @@ import { get } from '@/lib/rtdb';
 
 export const dynamic = 'force-dynamic';
 
-const NAME_RE = /^(branding\/(logo|favicon|banner)|products\/[a-z0-9-]{1,60})$/;
+const NAME_RE = /^[a-zA-Z0-9_.\-/]{1,120}$/;
 
 export async function GET(
   _request: Request,

@@ -6,6 +6,7 @@ const LIMITS = {
   favicon: 200 * 1024,
   banner: 500 * 1024,
   product: 500 * 1024,
+  default: 1024 * 1024, // 1 MB untuk aset lain
 } as const;
 
 export type AssetKind = keyof typeof LIMITS;
@@ -42,10 +43,10 @@ export function validateImageDataUrl(dataUrl: string, kind: AssetKind): ImageVal
   return { ok: true, mime, bytes: bytes.length };
 }
 
-export function assetKindFromName(name: string): AssetKind | null {
+export function assetKindFromName(name: string): AssetKind {
   if (name === 'branding/logo') return 'logo';
   if (name === 'branding/favicon') return 'favicon';
   if (name === 'branding/banner') return 'banner';
   if (/^products\/[a-z0-9-]{1,60}$/.test(name)) return 'product';
-  return null;
+  return 'default';
 }

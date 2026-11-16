@@ -28,9 +28,6 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const kind = assetKindFromName(parsed.data.name);
-  if (!kind) {
-    return Response.json({ error: 'Nama aset tidak diizinkan.' }, { status: 400 });
-  }
 
   const validation = validateImageDataUrl(parsed.data.dataUrl, kind);
   if (!validation.ok) {
@@ -58,7 +55,7 @@ export async function DELETE(request: Request): Promise<Response> {
   }
 
   const name = new URL(request.url).searchParams.get('name') ?? '';
-  if (!/^(branding\/(logo|favicon|banner)|products\/[a-z0-9-]{1,60})$/.test(name)) {
+  if (!/^[a-zA-Z0-9_.\-/]{1,120}$/.test(name)) {
     return Response.json({ error: 'Nama aset tidak valid.' }, { status: 400 });
   }
 

@@ -142,12 +142,12 @@ export const settingsPatchSchema = z
   .refine((value) => Object.keys(value).length > 0, { message: 'Tidak ada bagian yang dikirim.' });
 
 const DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
-const ASSET_NAME_RE = /^(branding\/(logo|favicon|banner)|products\/[a-z0-9-]{1,60})$/;
+const ASSET_NAME_RE = /^[a-zA-Z0-9_.\-/]{1,120}$/;
 
 export const assetUploadSchema = z.object({
   name: z
     .string()
-    .regex(ASSET_NAME_RE, 'Nama aset tidak diizinkan. Yang boleh: branding/logo, branding/favicon, branding/banner, products/<id>.'),
+    .regex(ASSET_NAME_RE, 'Nama aset tidak valid. Hanya huruf, angka, garis bawah, titik, strip, dan garis miring. Contoh: products/sepatu-merah, foto/profil, slider/utama.'),
   dataUrl: z
     .string()
     .regex(DATA_URL_RE, 'Format gambar harus PNG, JPG, atau WEBP (data URL base64).')
