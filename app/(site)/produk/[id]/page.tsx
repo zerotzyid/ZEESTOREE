@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen } from 'lucide-react';
+import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink } from 'lucide-react';
 import { get } from '@/lib/rtdb';
 import { getSettings } from '@/lib/settings';
 import { getSession } from '@/lib/session';
@@ -108,7 +108,7 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
   ] : [];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto px-4 py-8 sm:px-6 sm:py-12">
       <Link
         href="/#katalog"
         className="mb-6 inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line px-4 text-sm text-content-muted transition-colors hover:text-content"
@@ -119,21 +119,21 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <FadeIn>
-          <div className="overflow-hidden rounded-3xl border border-line/60 aspect-[16/10] bg-content/5">
+          <div className="overflow-hidden rounded-3xl border border-line/60 bg-content/5">
             {imageUrl ? (
               <ProductImage
                 src={imageUrl}
                 alt={name}
                 iconSize={48}
-                className="aspect-[16/10] w-full h-full object-cover"
+                className="w-full h-[300px] sm:h-[400px] object-cover"
               />
             ) : (
-              <div className="h-full flex items-center justify-center">
+              <div className="h-[300px] sm:h-[400px] flex items-center justify-center">
                 <PackageOpen aria-hidden size={64} className="text-content-muted/30" />
               </div>
             )}
             {categoryName ? (
-              <span className="absolute left-4 top-4 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+              <span className="absolute left-3 top-3 rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
                 {categoryName}
               </span>
             ) : null}
@@ -226,6 +226,11 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
               <CheckoutButton
                 productId={id}
                 kind={typeof product.kind === 'string' ? product.kind : 'lainnya'}
+                onPanelPaid={(panelOrderId) => {
+                  if (panelOrderId) {
+                    window.location.href = `/dashboard/panels/${panelOrderId}`;
+                  }
+                }}
               />
               <p className="text-xs text-content-faint">
                 Butuh bantuan?{' '}

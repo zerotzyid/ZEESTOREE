@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X } from 'lucide-react';
+import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type Result = {
   ok: boolean;
@@ -38,7 +39,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   qris: 'Bayar langsung via QRIS',
 };
 
-export function CheckoutButton({ productId, kind }: { productId: string; kind: string }) {
+export function CheckoutButton({ productId, kind, onPanelPaid }: { productId: string; kind: string; onPanelPaid?: (orderId: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -46,12 +47,21 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const [voucherCode, setVoucherCode] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('saldo');
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
 
   const downloadQRIS = async (qrString: string | null) => {
     if (!qrString) return;
     try {
-      // Jika qrString adalah URL, unduh langsung
-      if (qrString.startsWith('http')) {
+      const jpgUrl = qrString.replace(/\.(png|webp|jpeg)$/i, '.jpg');
+      const link = document.createElement('a');
+      link.href = jpgUrl;
+      link.download = 'qris-pembayaran.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('QRIS berhasil diunduh.');
+    } catch {
+      try {
         const link = document.createElement('a');
         link.href = qrString;
         link.download = 'qris-pembayaran.jpg';
@@ -59,11 +69,9 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         link.click();
         document.body.removeChild(link);
         toast.success('QRIS berhasil diunduh.');
-      } else {
-        toast.success('String QRIS: ' + qrString);
+      } catch {
+        toast.error('Gagal mengunduh QRIS.');
       }
-    } catch {
-      toast.error('Gagal mengunduh QRIS.');
     }
   };
 
@@ -72,7 +80,6 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     if (!window.confirm('Batalkan pembayaran ini? Pesanan akan dibatalkan.')) return;
     setCancelBusy(true);
     try {
-      // Coba batalkan via invoice ID
       if (invoiceId) {
         const res = await fetch(`/api/user/payments/${invoiceId}/cancel`, {
           method: 'POST',
@@ -80,14 +87,14 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         if (res.ok) {
           toast.success('Pembayaran berhasil dibatalkan.');
           setResult(null);
+          setQrDialogOpen(false);
           return;
         }
       }
-      // Fallback: tandai order sebagai cancelled melalui order ID
       if (orderId) {
-        await updateOrderStatus(orderId, 'cancelled');
         toast.success('Pesanan dibatalkan.');
         setResult(null);
+        setQrDialogOpen(false);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal membatalkan pembayaran.');
@@ -95,13 +102,6 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
       setCancelBusy(false);
     }
   };
-
-  async function updateOrderStatus(orderId: string, status: string) {
-    await fetch('/api/user/orders', { method: 'GET' }).then(async (res) => {
-      const data = await res.json();
-      // This is just a fallback; the cancel endpoint handles the invoice
-    });
-  }
 
   const checkout = async () => {
     if (kind === 'reseller') {
@@ -139,8 +139,18 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         });
         return;
       }
+
+      if (data.ok && data.orderId && kind === 'panel' && onPanelPaid) {
+        onPanelPaid(data.orderId);
+        return;
+      }
+
       setResult(data);
       toast.success(data.message);
+
+      if (data.ok && (data.qrImageUrl || data.qrString || data.invoiceUrl)) {
+        setQrDialogOpen(true);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Checkout gagal.');
     } finally {
@@ -148,163 +158,16 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     }
   };
 
-  if (result) {
+  // Error result
+  if (result && !result.ok) {
     return (
       <div className="flex flex-col gap-3">
-        <div
-          className={
-            result.ok
-              ? 'rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200'
-              : 'rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200'
-          }
-        >
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           <p>{result.message}</p>
           <div className="mt-1.5 flex items-center gap-2">
-            <Badge variant={result.ok ? 'success' : 'danger'}>{result.status}</Badge>
+            <Badge variant="danger">{result.status}</Badge>
           </div>
         </div>
-
-        {result.panelUrl ? (
-          <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
-            <p className="label-mono">Akses panel</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <a
-                href={result.panelUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
-              >
-                {result.panelUrl}
-                <ExternalLink aria-hidden size={13} />
-              </a>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void navigator.clipboard
-                    .writeText(result.panelUrl ?? '')
-                    .then(() => toast.success('URL disalin.'));
-                }}
-              >
-                <Copy aria-hidden size={13} />
-                Salin
-              </Button>
-            </div>
-            {result.panelPassword ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="rounded-lg bg-content/5 px-2.5 py-1.5 font-mono text-sm text-content">
-                  {result.panelPassword}
-                </code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void navigator.clipboard
-                      .writeText(result.panelPassword ?? '')
-                      .then(() => toast.success('Password disalin.'));
-                  }}
-                >
-                  <Copy aria-hidden size={13} />
-                  Salin password
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {result.qrImageUrl || result.qrString || result.invoiceUrl ? (
-          <Card className="rounded-xl border border-line p-3">
-            <CardContent className="p-0">
-              <div className="flex flex-col gap-3 p-3">
-                <p className="label-mono">QRIS pembayaran (bukan saldo)</p>
-                {result.total !== undefined && (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-content-faint">Total yang harus dibayar</span>
-                    <span className="font-mono font-semibold text-accent">
-                      Rp {result.total.toLocaleString('id-ID')}
-                    </span>
-                  </div>
-                )}
-                <div className="flex flex-wrap items-start gap-4">
-                  {result.qrImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={result.qrImageUrl}
-                      alt="QRIS pembayaran"
-                      className="h-40 w-40 rounded-xl border border-line bg-white object-contain p-1"
-                    />
-                  ) : null}
-                  <div className="flex flex-col gap-2">
-                    {result.invoiceUrl ? (
-                      <a
-                        href={result.invoiceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
-                      >
-                        Buka halaman invoice
-                        <ExternalLink aria-hidden size={13} />
-                      </a>
-                    ) : null}
-                    {result.qrString ? (
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            void navigator.clipboard
-                              .writeText(result.qrString ?? '')
-                              .then(() => toast.success('String QRIS disalin.'));
-                          }}
-                        >
-                          <Copy aria-hidden size={13} />
-                          Salin string QRIS
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => void downloadQRIS(result.qrString ?? null)}
-                        >
-                          <Download aria-hidden size={13} />
-                          Unduh QRIS (JPG)
-                        </Button>
-                      </div>
-                    ) : null}
-                    {result.orderId && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={cancelBusy}
-                        onClick={() => void cancelPayment(result.invoiceId ?? result.orderId ?? null, result.orderId ?? null)}
-                      >
-                        {cancelBusy ? (
-                          <Loader2 aria-hidden size={12} className="animate-spin" />
-                        ) : (
-                          <X aria-hidden size={13} />
-                        )}
-                        Batal Pembayaran
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {result.expiredAt && (
-                  <p className="text-xs text-content-faint font-mono">
-                    Invoice berlaku hingga {new Date(result.expiredAt).toLocaleString('id-ID')}
-                  </p>
-                )}
-                <p className="text-xs text-content-faint">
-                  Status diperbarui otomatis setelah pembayaran terkonfirmasi.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
         <div className="flex flex-wrap gap-2">
           <Link
             href="/dashboard/orders"
@@ -317,6 +180,174 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
           </Button>
         </div>
       </div>
+    );
+  }
+
+  // Panel success result
+  if (result && result.ok && result.panelUrl) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          <p>{result.message}</p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <Badge variant="success">{result.status}</Badge>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
+          <p className="label-mono">Akses panel</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={result.panelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+            >
+              {result.panelUrl}
+              <ExternalLink aria-hidden size={13} />
+            </a>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(result.panelUrl ?? '')
+                  .then(() => toast.success('URL disalin.'));
+              }}
+            >
+              <Copy aria-hidden size={13} />
+              Salin
+            </Button>
+          </div>
+          {result.panelPassword ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="rounded-lg bg-content/5 px-2.5 py-1.5 font-mono text-sm text-content">
+                {result.panelPassword}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(result.panelPassword ?? '')
+                    .then(() => toast.success('Password disalin.'));
+                }}
+              >
+                <Copy aria-hidden size={13} />
+                Salin password
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/orders"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line px-5 text-sm text-content transition-colors hover:bg-content/5"
+          >
+            Lihat riwayat pesanan
+          </Link>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setResult(null)}>
+            Beli lagi
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // QRIS Dialog
+  if (qrDialogOpen && result) {
+    const r = result;
+    return (
+      <>
+        <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Pembayaran QRIS</DialogTitle>
+              <DialogDescription>
+                Silakan scan QRIS berikut untuk melanjutkan pembayaran.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-4 flex flex-col items-center gap-4">
+              <p className="text-sm text-content-muted">
+                Total: <span className="font-semibold text-accent">
+                  {r.total !== undefined ? `Rp ${r.total.toLocaleString('id-ID')}` : '-'}
+                </span>
+              </p>
+              {r.qrImageUrl ? (
+                <img
+                  src={r.qrImageUrl}
+                  alt="QRIS pembayaran"
+                  className="w-64 h-64 rounded-xl border border-line bg-white p-2 object-contain"
+                />
+              ) : null}
+              {r.qrString && (
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(r.qrString ?? '')
+                        .then(() => toast.success('String QRIS disalin.'));
+                    }}
+                  >
+                    <Copy aria-hidden size={13} />
+                    Salin string QRIS
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void downloadQRIS(r.qrString ?? null)}
+                  >
+                    <Download aria-hidden size={13} />
+                    Unduh QRIS (JPG)
+                  </Button>
+                </div>
+              )}
+              {r.invoiceUrl && (
+                <a
+                  href={r.invoiceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+                >
+                  Buka halaman invoice
+                  <ExternalLink aria-hidden size={13} />
+                </a>
+              )}
+              {r.expiredAt !== undefined && r.expiredAt !== null && (
+                <p className="text-xs text-content-faint font-mono">
+                  Invoice berlaku hingga {new Date(r.expiredAt).toLocaleString('id-ID')}
+                </p>
+              )}
+              {r.orderId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={cancelBusy}
+                  onClick={() => void cancelPayment(r.invoiceId ?? r.orderId ?? null, r.orderId ?? null)}
+                >
+                  {cancelBusy ? (
+                    <Loader2 aria-hidden size={12} className="animate-spin" />
+                  ) : (
+                    <X aria-hidden size={13} />
+                  )}
+                  Batal Pembayaran
+                </Button>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setQrDialogOpen(false)}>
+                Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
