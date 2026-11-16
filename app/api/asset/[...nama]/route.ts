@@ -4,6 +4,14 @@ export const dynamic = 'force-dynamic';
 
 const NAME_RE = /^[a-zA-Z0-9_.\-/]{1,120}$/;
 
+type AssetRecord = {
+  url?: string;
+  file_name?: string;
+  size?: number;
+  uploadedAt?: number;
+  uploadedBy?: string;
+};
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ nama: string[] }> }
@@ -15,23 +23,13 @@ export async function GET(
   }
 
   try {
-    const dataUrl = await get<string>(`assets/${name}`);
-    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+    const record = await get<AssetRecord>(`assets/${name}`);
+    if (!record || !record.url) {
       return new Response('Aset tidak ditemukan.', { status: 404 });
     }
-    const comma = dataUrl.indexOf(',');
-    const header = dataUrl.slice(0, comma);
-    const base64 = dataUrl.slice(comma + 1);
-    const mime = header.slice('data:'.length).split(';')[0] ?? 'image/png';
-    const buffer = Buffer.from(base64, 'base64');
-    return new Response(new Uint8Array(buffer), {
-      headers: {
-        'Content-Type': mime,
-        'Content-Length': String(buffer.byteLength),
-        'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+
+    // Redirect ke URL CDNZero publik
+    return Response.redirect(record.url, 302);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Gagal memuat aset.';
     return new Response(message, { status: 500 });
