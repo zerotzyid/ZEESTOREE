@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink, Tag } from 'lucide-react';
 import { get } from '@/lib/rtdb';
 import { getSettings } from '@/lib/settings';
 import { getSession } from '@/lib/session';
@@ -117,139 +117,150 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
         Kembali ke katalog
       </Link>
 
-      {/* Image - full width on mobile, side by side on desktop */}
-      <FadeIn>
-        <div className="overflow-hidden rounded-3xl border border-line/60 bg-content/5 aspect-[16/9] md:aspect-[4/3]">
-          {imageUrl ? (
-            <ProductImage
-              src={imageUrl}
-              alt={name}
-              iconSize={48}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <PackageOpen aria-hidden size={64} className="text-content-muted/30" />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Product Image - sticky on desktop */}
+        <FadeIn>
+          <div className="relative lg:sticky lg:top-24">
+            <div className="overflow-hidden rounded-3xl border border-line/60 bg-content/5 aspect-[4/3] md:aspect-[3/4]">
+              {imageUrl ? (
+                <ProductImage
+                  src={imageUrl}
+                  alt={name}
+                  iconSize={48}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <PackageOpen aria-hidden size={64} className="text-content-muted/30" />
+                </div>
+              )}
+              {categoryName && (
+                <span className="absolute left-3 top-3 rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+                  {categoryName}
+                </span>
+              )}
             </div>
-          )}
-          {categoryName ? (
-            <span className="absolute left-3 top-3 rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
-              {categoryName}
-            </span>
-          ) : null}
-        </div>
-      </FadeIn>
-
-      {/* Content - full width on mobile */}
-      <FadeIn delay={0.08} className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {categoryName ? (
-            <span className="rounded-full bg-accent-soft px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-accent">
-              {categoryName}
-            </span>
-          ) : null}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] text-content-muted">
-            <Clock3 aria-hidden size={12} />
-            Aktif dipesan
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl">{name}</h1>
-          {price !== null ? (
-            price === 0 ? (
-              <p className="text-3xl font-semibold text-emerald-500">Gratis</p>
-            ) : (
-              <p className="text-3xl font-semibold text-accent">{formatRupiah(price)}</p>
-            )
-          ) : (
-            <p className="text-sm text-content-muted">Hubungi kami untuk harga.</p>
-          )}
-        </div>
-
-        {description ? (
-          <div className="whitespace-pre-line rounded-2xl border border-line/60 bg-content/5 p-4 text-sm leading-relaxed text-content-muted">
-            {description}
           </div>
-        ) : null}
+          </FadeIn>
 
-        {isPanel ? (
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-line p-4">
-            <p className="label-mono">Spesifikasi Panel</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              {featureItems.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
-                  <f.icon aria-hidden size={16} className="text-accent" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-content">{f.label}</p>
-                    <p className="text-xs text-content-faint">{f.desc}</p>
+          {/* Content */}
+          <FadeIn delay={0.08} className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {categoryName && (
+                <span className="rounded-full bg-accent-soft px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-accent">
+                  {categoryName}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] text-content-muted">
+                <Tag aria-hidden size={12} className="mr-1" />
+                Aktif dipesan
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl lg:text-4xl">{name}</h1>
+              {price !== null ? (
+                price === 0 ? (
+                  <p className="text-3xl font-semibold text-emerald-500">Gratis</p>
+                ) : (
+                  <p className="text-3xl font-semibold text-accent">{formatRupiah(price)}</p>
+                )
+              ) : (
+                <p className="text-sm text-content-muted">Hubungi kami untuk harga.</p>
+              )}
+            </div>
+
+            {description && (
+              <div className="whitespace-pre-line rounded-2xl border border-line/60 bg-content/5 p-4 text-sm leading-relaxed text-content-muted">
+                {description}
+              </div>
+            )}
+
+            {/* Panel Specs */}
+            {isPanel ? (
+              <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-line p-4">
+                <div className="flex items-center gap-2">
+                  <Server aria-hidden size={16} className="text-accent" />
+                  <p className="label-mono">Spesifikasi Panel</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  {featureItems.map((f, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
+                      <f.icon aria-hidden size={16} className="text-accent shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-content truncate">{f.label}</p>
+                        <p className="text-xs text-content-faint truncate">{f.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="col-span-2 flex items-center gap-2 p-2 rounded-xl border border-line/40 bg-emerald-500/10 text-emerald-500/90 text-sm">
+                    <ShieldCheck aria-hidden size={16} />
+                    <span className="font-medium">{expiresText}</span>
                   </div>
                 </div>
-              ))}
-              <div className="col-span-2 flex items-center gap-2 p-2 rounded-xl border border-line/40 bg-emerald-500/10 text-emerald-500/90 text-sm">
-                <ShieldCheck aria-hidden size={16} />
-                <span className="font-medium">{expiresText}</span>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-4 rounded-2xl border border-line/60 bg-content/5 p-4">
-            <p className="text-sm text-content-muted">
-              {isReseller
-                ? 'Pesanan ini dibayar via QRIS penyedia — bukan dari saldo situs.'
-                : isNokos
-                  ? 'Saldo terpotong otomatis; nomor & OTP muncul di riwayat pesanan. Bila gagal, saldo kembali.'
-                  : 'Saldo akan terpotong otomatis. Bila pembuatan server panel gagal, uang dikembalikan ke saldo Anda.'}
-            </p>
-          </div>
-        )}
+            ) : (
+              <div className="mt-4 rounded-2xl border border-line/60 bg-content/5 p-4">
+                <p className="text-sm text-content-muted">
+                  {isReseller
+                    ? 'Pesanan ini dibayar via QRIS penyedia — bukan dari saldo situs.'
+                    : isNokos
+                      ? 'Saldo terpotong otomatis; nomor & OTP muncul di riwayat pesanan. Bila gagal, saldo kembali.'
+                      : 'Saldo akan terpotong otomatis. Bila pembuatan server panel gagal, uang dikembalikan ke saldo Anda.'}
+                </p>
+              </div>
+            )}
 
-        {!session ? (
-          <>
-            <p className="text-sm text-content-muted">
-              Masuk atau buat akun untuk membeli produk ini.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={`/login?next=/produk/${id}` as Route}
-                className="btn-accent inline-flex min-h-[46px] items-center gap-2 rounded-full px-6 text-sm font-medium"
-              >
-                <LogIn aria-hidden size={16} />
-                Masuk untuk membeli
-              </Link>
-              <Link
-                href="/register"
-                className="inline-flex min-h-[46px] items-center gap-2 rounded-full border border-line px-6 text-sm font-medium text-content transition-colors hover:bg-content/5"
-              >
-                <UserPlus aria-hidden size={16} />
-                Daftar
-              </Link>
-            </div>
-          </>
-        ) : (
-          <>
-            <CheckoutButton
-              productId={id}
-              kind={typeof product.kind === 'string' ? product.kind : 'lainnya'}
-            />
-            <p className="text-xs text-content-faint">
-              Butuh bantuan?{' '}
-              {helpHref ? (
-                <a
-                  href={helpHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent hover:underline"
-                >
-                  Hubungi kami
-                </a>
+            {/* Checkout Section */}
+            <div className="mt-4 pt-4 border-t border-line/40">
+              {!session ? (
+                <>
+                  <p className="text-sm text-content-muted mb-3">
+                    Masuk atau buat akun untuk membeli produk ini.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Link
+                      href={`/login?next=/produk/${id}` as Route}
+                      className="btn-accent inline-flex min-h-[48px] items-center gap-2 rounded-full px-6 text-sm font-medium flex-1 justify-center"
+                    >
+                      <LogIn aria-hidden size={16} />
+                      Masuk untuk membeli
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-line px-6 text-sm font-medium text-content transition-colors hover:bg-content/5 flex-1 justify-center"
+                    >
+                      <UserPlus aria-hidden size={16} />
+                      Daftar
+                    </Link>
+                  </div>
+                </>
               ) : (
-                'gunakan menu bantuan di situs.'
+                <>
+                  <CheckoutButton
+                    productId={id}
+                    kind={typeof product.kind === 'string' ? product.kind : 'lainnya'}
+                  />
+                  <p className="mt-3 text-xs text-content-faint">
+                    Butuh bantuan?{' '}
+                    {helpHref ? (
+                      <a
+                        href={helpHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent hover:underline"
+                      >
+                        Hubungi kami
+                      </a>
+                    ) : (
+                      'gunakan menu bantuan di situs.'
+                    )}
+                  </p>
+                </>
               )}
-            </p>
-          </>
-        )}
-      </FadeIn>
-    </div>
+            </div>
+          </FadeIn>
+        </div>
+      </div>
   );
 }
