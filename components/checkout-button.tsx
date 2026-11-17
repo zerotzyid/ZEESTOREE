@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X, Mail, Server, CheckCircle2, Clock } from 'lucide-react';
+import { Copy, Download, ExternalLink, Loader2, QrCode, RefreshCw, ShoppingCart, Trash2, Wallet, X, Mail, Server, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,14 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   qris: 'Bayar langsung via QRIS',
 };
 
+// Build absolute CDNZero URL if relative path
+const cdnUrl = (path: string | null) => {
+  if (!path) return '';
+  return path.startsWith('http')
+    ? path
+    : `https://api-cdnzero.vercel.app${path.startsWith('/') ? path : '/' + path}`;
+};
+
 export function CheckoutButton({ productId, kind }: { productId: string; kind: string }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
@@ -50,20 +58,12 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installProgress, setInstallProgress] = useState(0);
-
-    // Build absolute CDNZero URL if relative path
-  const cdnUrl = (path: string | null) => {
-    if (!path) return '';
-    return path.startsWith('http')
-      ? path
-      : `https://api-cdnzero.vercel.app${path.startsWith('/') ? path : '/' + path}`;
-  };
+  const [pollInterval, setPollInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   const downloadQRIS = async (qrString: string | null) => {
     if (!qrString) return;
     try {
       const imageUrl = cdnUrl(qrString);
-      // Fetch image as blob to bypass CORS, then download
       const res = await fetch(imageUrl);
       if (!res.ok) throw new Error('Gagal mengambil gambar QRIS.');
       const blob = await res.blob();
@@ -77,7 +77,6 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
       URL.revokeObjectURL(blobUrl);
       toast.success('QRIS berhasil diunduh.');
     } catch {
-      // Fallback: open image in new tab so user can save manually
       window.open(cdnUrl(qrString), '_blank');
       toast.error('Gagal mengunduh otomatis. Gambar dibuka di tab baru - klik kanan lalu simpan.');
     }
@@ -154,6 +153,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
       // Jika pembelian panel via QRIS, buka dialog pembayaran
       if (data.ok && (data.qrImageUrl || data.qrString || data.invoiceUrl)) {
         setQrDialogOpen(true);
+        startPaymentPolling((data.invoiceId ?? data.orderId) ?? null);
         return;
       }
 
@@ -169,21 +169,47 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     }
   };
 
-  // Simulasi proses instalasi panel setelah pembayaran berhasil
-  const handleInstallComplete = (orderId: string) => {
-    setInstalling(true);
-    setInstallProgress(0);
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 10;
-      setInstallProgress(progress);
-      if (progress >= 100) {
-        clearInterval(interval);
-        setInstalling(false);
-        window.location.href = `/dashboard/panels/${orderId}`;
+  // Polling status pembayaran QRIS
+  const startPaymentPolling = (invoiceId: string | null) => {
+    if (!invoiceId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/user/invoices/${invoiceId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status === 'paid') {
+          clearInterval(interval);
+          setQrDialogOpen(false);
+          setInstalling(true);
+          setInstallProgress(0);
+          let progress = 0;
+          const installInterval = setInterval(() => {
+            progress += 10;
+            setInstallProgress(progress);
+            if (progress >= 100) {
+              clearInterval(installInterval);
+              setInstalling(false);
+              window.location.href = `/dashboard/panels/${data.orderId ?? invoiceId}`;
+            }
+          }, 200);
+        } else if (data.status === 'expired' || data.status === 'failed') {
+          clearInterval(interval);
+          setQrDialogOpen(false);
+          toast.error('Pembayaran gagal atau kedaluwarsa.');
+        }
+      } catch {
+        // Silent retry
       }
-    }, 200);
+    }, 3000);
+    setPollInterval(interval);
   };
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, []);
 
   // Error result
   if (result && !result.ok) {
@@ -282,12 +308,17 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     );
   }
 
-  // QRIS Dialog
+  // QRIS Dialog - with auto-polling for payment confirmation
   if (qrDialogOpen && result) {
     const r = result;
     return (
       <>
-        <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <Dialog open={qrDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            if (pollInterval) clearInterval(pollInterval);
+          }
+          setQrDialogOpen(open);
+        }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Pembayaran QRIS</DialogTitle>
@@ -378,7 +409,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
     );
   }
 
-  // Panel installing animation
+  // Panel installing animation - after QRIS payment confirmed
   if (installing && result) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-8">
