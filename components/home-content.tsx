@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Headset, X, ArrowRight, ArrowLeft, Folder, PackageOpen, RefreshCw } from 'lucide-react';
+import { Headset, X, ArrowRight, ArrowLeft, Folder, PackageOpen, RefreshCw, Server, HardDrive, Cpu, Database, ShieldCheck, Box } from 'lucide-react';
 import { useSettings } from '@/components/settings-provider';
 import { StatusBoard } from '@/components/status-board';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ProductImage } from '@/components/product-image';
 import { cn } from '@/lib/cn';
 import { formatRupiah } from '@/lib/format';
+import { LucideIcon } from '@/lib/icon-map';
 
 const CHIP_LINKS = ['/dashboard/deposit', '/dashboard/orders', '/dashboard'] as const;
 
@@ -226,6 +227,38 @@ export function HomeContent() {
   useEffect(() => {
     void loadCatalog();
   }, []);
+
+  // Combine regular categories with panel categories from settings
+  const allCategories = useMemo(() => {
+    if (!settings) return { regular: categories, panel: [] as any[] };
+    
+    const panelCats = settings.panelCategories?.filter((c) => c.active) ?? [];
+    const panelTiers = settings.panelRamTiers?.filter((t) => t.active) ?? [];
+    
+    // Create virtual categories for panel tiers (grouped by panel category)
+    const panelCategoryMap = new Map<string, { 
+      category: { id: string; name: string; description: string; icon: string; key: string };
+      tiers: typeof panelTiers;
+    }>();
+    
+    for (const panelCat of panelCats) {
+      const tiers = panelTiers.filter((t) => t.categoryId === panelCat.id);
+      if (tiers.length > 0) {
+        panelCategoryMap.set(panelCat.id, {
+          category: {
+            id: panelCat.id,
+            name: panelCat.name,
+            description: panelCat.description,
+            icon: panelCat.icon,
+            key: panelCat.key,
+          },
+          tiers,
+        });
+      }
+    }
+
+    return { regular: categories, panel: Array.from(panelCategoryMap.values()) };
+  }, [categories, settings]);
 
   const filtered = useMemo(() => {
     if (!selectedCategory) return [];
@@ -449,63 +482,141 @@ export function HomeContent() {
           />
         ) : !selectedCategory ? (
           <div className="mt-8">
-            {categories.length === 0 ? (
-              <EmptyState
-                icon={Folder}
-                title="Belum ada kategori"
-                description="Kategori produk akan tersedia setelah ditambahkan admin."
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {categories.map((cat, index) => {
-                  const catProducts = products.filter((p) => p.categoryId === cat.id);
-                  return (
-                    <motion.div
-                      key={cat.id}
-                      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-30px' }}
-                      transition={{
-                        duration: 0.35,
-                        delay: Math.min(index * 0.06, 0.3),
-                        ease: 'easeOut',
-                      }}
-                      className="h-full"
-                    >
-                      <Link
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSelectedCategory(cat.id);
-                        }}
-                        className="block h-full"
-                      >
-                        <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
-                          <div className="relative aspect-[16/9] overflow-hidden rounded-t-3xl bg-content/10">
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <Folder aria-hidden size={48} className="text-content-muted/50 group-hover:text-accent transition-colors" />
-                            </div>
-                            <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
-                              {catProducts.length} produk
-                            </span>
-                          </div>
-                          <div className="p-5">
-                            <h3 className="text-lg font-semibold text-content">{cat.name}</h3>
-                            <p className="mt-1 text-sm text-content-muted">
-                              {catProducts.length} produk tersedia di kategori ini
-                            </p>
-                            <div className="mt-auto flex items-center gap-2 text-xs">
-                              <ArrowRight aria-hidden size={14} className="text-accent group-hover:translate-x-1 transition-transform" />
-                              <span className="font-medium text-content">Lihat produk</span>
-                            </div>
-                          </div>
-                        </article>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+            {(() => {
+              const hasRegularCategories = categories.length > 0;
+              const hasPanelCategories = allCategories.panel.length > 0;
+              
+              if (!hasRegularCategories && !hasPanelCategories) {
+                return (
+                  <EmptyState
+                    icon={Folder}
+                    title="Belum ada kategori"
+                    description="Kategori produk akan tersedia setelah ditambahkan admin."
+                  />
+                );
+              }
+              
+              return (
+                <div className="space-y-8">
+                  {/* Regular Product Categories */}
+                  {hasRegularCategories && (
+                    <div>
+                      <h3 className="mb-4 text-sm font-semibold text-content-muted uppercase tracking-wide">Produk Reguler</h3>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {categories.map((cat, index) => {
+                          const catProducts = products.filter((p) => p.categoryId === cat.id);
+                          return (
+                            <motion.div
+                              key={cat.id}
+                              initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              viewport={{ once: true, margin: '-30px' }}
+                              transition={{
+                                duration: 0.35,
+                                delay: Math.min(index * 0.06, 0.3),
+                                ease: 'easeOut',
+                              }}
+                              className="h-full"
+                            >
+                              <Link
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setSelectedCategory(cat.id);
+                                }}
+                                className="block h-full"
+                              >
+                                <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
+                                  <div className="relative aspect-[16/9] overflow-hidden rounded-t-3xl bg-content/10">
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <Folder aria-hidden size={48} className="text-content-muted/50 group-hover:text-accent transition-colors" />
+                                    </div>
+                                    <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+                                      {catProducts.length} produk
+                                    </span>
+                                  </div>
+                                  <div className="p-5">
+                                    <h3 className="text-lg font-semibold text-content">{cat.name}</h3>
+                                    <p className="mt-1 text-sm text-content-muted">
+                                      {catProducts.length} produk tersedia di kategori ini
+                                    </p>
+                                    <div className="mt-auto flex items-center gap-2 text-xs">
+                                      <ArrowRight aria-hidden size={14} className="text-accent group-hover:translate-x-1 transition-transform" />
+                                      <span className="font-medium text-content">Lihat produk</span>
+                                    </div>
+                                  </div>
+                                </article>
+                              </Link>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Panel Categories */}
+                  {hasPanelCategories && (
+                    <div>
+                      <h3 className="mb-4 text-sm font-semibold text-content-muted uppercase tracking-wide">Panel Server (Pterodactyl)</h3>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {allCategories.panel.map((panelCat, catIndex) => (
+                          <motion.div
+                            key={panelCat.category.id}
+                            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, margin: '-30px' }}
+                            transition={{
+                              duration: 0.35,
+                              delay: Math.min(catIndex * 0.06, 0.3),
+                              ease: 'easeOut',
+                            }}
+                            className="h-full"
+                          >
+                            <Link
+                              href={`/panel-beli/${panelCat.category.key}`}
+                              className="block h-full"
+                            >
+                              <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
+                                <div className="relative aspect-[16/9] overflow-hidden rounded-t-3xl bg-content/10">
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <LucideIcon name={panelCat.category.icon} size={48} className="text-content-muted/50 group-hover:text-accent transition-colors" />
+                                  </div>
+                                  <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+                                    {panelCat.tiers.length} tier RAM
+                                  </span>
+                                </div>
+                                <div className="p-5">
+                                  <h3 className="text-lg font-semibold text-content">{panelCat.category.name}</h3>
+                                  <p className="mt-1 text-sm text-content-muted line-clamp-2">
+                                    {panelCat.category.description}
+                                  </p>
+                                  <div className="mt-3 flex flex-wrap gap-1.5">
+                                    {panelCat.tiers.slice(0, 3).map((tier: any) => (
+                                      <span key={tier.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-content/10 text-[10px] font-medium text-content-muted">
+                                        {tier.provision.memoryMb}MB
+                                      </span>
+                                    ))}
+                                    {panelCat.tiers.length > 3 && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-[10px] font-medium text-accent">
+                                        +{panelCat.tiers.length - 3} tier lagi
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="mt-auto flex items-center gap-2 text-xs">
+                                    <ArrowRight aria-hidden size={14} className="text-accent group-hover:translate-x-1 transition-transform" />
+                                    <span className="font-medium text-content">Pilih spesifikasi</span>
+                                  </div>
+                                </div>
+                              </article>
+                            </Link>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="mt-8">
