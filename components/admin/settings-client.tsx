@@ -313,6 +313,7 @@ export function SettingsClient({ initial }: Props) {
       durationDays: 30,
       sortOrder: (draft.panelRamTiers?.length ?? 0) + 1,
       active: true,
+      maxPurchasePerUser: 0,
       provision: {
         memoryMb: 1024,
         swapMb: 128,

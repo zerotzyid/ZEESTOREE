@@ -34,6 +34,7 @@ export type PanelRamTier = {
   durationDays: number;
   sortOrder: number;
   active: boolean;
+  maxPurchasePerUser: number; // 0 = unlimited, 1 = sekali beli, 2 = maks 2 kali, dst.
   // Spesifikasi provisioning
   provision: {
     memoryMb: number;
@@ -283,6 +284,7 @@ export const DEFAULT_SETTINGS: Settings = {
       durationDays: 30,
       sortOrder: 1,
       active: true,
+      maxPurchasePerUser: 0, // unlimited
       provision: {
         memoryMb: 1024,
         swapMb: 128,
@@ -308,6 +310,7 @@ export const DEFAULT_SETTINGS: Settings = {
       durationDays: 30,
       sortOrder: 2,
       active: true,
+      maxPurchasePerUser: 0, // unlimited
       provision: {
         memoryMb: 2048,
         swapMb: 256,
@@ -333,6 +336,7 @@ export const DEFAULT_SETTINGS: Settings = {
       durationDays: 30,
       sortOrder: 3,
       active: true,
+      maxPurchasePerUser: 0, // unlimited
       provision: {
         memoryMb: 4096,
         swapMb: 512,

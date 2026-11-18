@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Server, Cpu, HardDrive, Database, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useSettings } from '@/components/settings-provider';
@@ -8,13 +8,27 @@ import { Button } from '@/components/ui/button';
 
 export const dynamic = 'force-dynamic';
 
-interface PanelType {
+interface PanelCategory {
   id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  active: boolean;
+  sortOrder: number;
+  pterodactylPanelId?: string;
+}
+
+interface PanelRamTier {
+  id: string;
+  categoryId: string;
   name: string;
   description: string;
   price: number;
   durationDays: number;
-  category: 'pterodactyl' | 'custom';
+  sortOrder: number;
+  active: boolean;
+  maxPurchasePerUser: number;
   provision: {
     memoryMb: number;
     swapMb: number;
@@ -29,10 +43,7 @@ interface PanelType {
     databases: number;
     allocations: number;
     backups: number;
-    durationDays: number;
-  } | null;
-  active: boolean;
-  sortOrder: number;
+  };
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -40,9 +51,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   custom: 'Panel Custom',
 };
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  pterodactyl: <Server aria-hidden size={20} className="text-accent" />,
-  custom: <Box aria-hidden size={20} className="text-purple-400" />,
+const ICON_MAP: Record<string, React.ReactNode> = {
+  Server: <Server aria-hidden size={20} className="text-accent" />,
+  Box: <Box aria-hidden size={20} className="text-purple-400" />,
+  HardDrive: <HardDrive aria-hidden size={20} className="text-blue-400" />,
+  Cpu: <Cpu aria-hidden size={20} className="text-orange-400" />,
+  Database: <Database aria-hidden size={20} className="text-green-400" />,
+  ShieldCheck: <ShieldCheck aria-hidden size={20} className="text-emerald-400" />,
 };
 
 function Box({ size = 20, ...props }: React.SVGProps<SVGSVGElement> & { size?: number }) {
@@ -58,39 +73,37 @@ function Box({ size = 20, ...props }: React.SVGProps<SVGSVGElement> & { size?: n
 export default function PanelCategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const { settings } = useSettings();
 
-  const panelTypes = settings?.panelTypes?.filter((p) => p.active) ?? [];
+  const panelCategories = settings?.panelCategories?.filter((p) => p.active) ?? [];
+  const panelRamTiers = settings?.panelRamTiers?.filter((p) => p.active) ?? [];
 
-  // Use dynamic params
-  const categoryKey = 'pterodactyl'; // Will be replaced by params in actual render
-  const [category, setCategory] = useState<string>('');
+  const [category, setCategory] = useState<PanelCategory | null>(null);
+  const [categoryKey, setCategoryKey] = useState<string>('');
 
-  // We'll use a client-side approach since params is Promise
-  // The actual category will be determined from the URL
+  useEffect(() => {
+    params.then((p) => {
+      const key = p.category;
+      setCategoryKey(key);
+      const found = panelCategories.find((c) => c.key === key);
+      if (found) setCategory(found);
+    });
+  }, [params, panelCategories]);
 
-  const categoryLabel = CATEGORY_LABELS[category] || category;
-  const categoryIcon = CATEGORY_ICONS[category] || CATEGORY_ICONS.pterodactyl;
-
-  const filteredPanels = panelTypes.filter((p) => p.category === category).sort((a, b) => a.sortOrder - b.sortOrder);
+  const filteredTiers = panelRamTiers
+    .filter((t) => t.categoryId === category?.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const emptyState = (
     <div className="col-span-full text-center py-12">
       <Server aria-hidden size={48} className="mx-auto mb-4 text-content-muted/30" />
-      <h3 className="text-lg font-semibold text-content">Tidak ada panel di kategori ini</h3>
+      <h3 className="text-lg font-semibold text-content">Tidak ada tier RAM di kategori ini</h3>
       <p className="mt-2 text-sm text-content-muted">
-        Admin belum mengonfigurasi panel untuk kategori <strong>{categoryLabel}</strong>.
+        Admin belum mengonfigurasi tier RAM untuk kategori <strong>{category?.name}</strong>.
       </p>
     </div>
   );
 
-  // Since we can't use async params directly in client component easily,
-  // we'll read from URL pathname
-  if (typeof window !== 'undefined' && !category) {
-    const path = window.location.pathname;
-    const match = path.match(/\/panel-beli\/([^/]+)/);
-    if (match) {
-      setCategory(match[1]);
-    }
-  }
+  const categoryLabel = category?.name || categoryKey;
+  const categoryIcon = category ? ICON_MAP[category.icon] : ICON_MAP.Server;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
@@ -117,13 +130,13 @@ export default function PanelCategoryPage({ params }: { params: Promise<{ catego
 
       <div>
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredPanels.length === 0 ? (
+          {filteredTiers.length === 0 ? (
             emptyState
           ) : (
-            filteredPanels.map((panel) => (
+            filteredTiers.map((tier) => (
               <Link
-                key={panel.id}
-                href={`/panel-beli/${category}/${panel.id}/configure`}
+                key={tier.id}
+                href={`/panel-beli/${categoryKey}/${tier.id}/configure`}
                 className="relative flex flex-col h-full overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 hover:shadow-lg hover:shadow-accent/10 transition-all duration-300"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
@@ -133,13 +146,13 @@ export default function PanelCategoryPage({ params }: { params: Promise<{ catego
                       <Server aria-hidden size={24} className="text-accent" />
                     </div>
                     <span className="text-xs font-medium text-content-faint">
-                      {panel.durationDays} hari
+                      {tier.durationDays} hari
                     </span>
                   </div>
                   <div className="flex-1 flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xl font-semibold text-content">{panel.name}</h3>
-                      <p className="mt-2 text-sm text-content-muted line-clamp-2">{panel.description}</p>
+                      <h3 className="text-xl font-semibold text-content">{tier.name}</h3>
+                      <p className="mt-2 text-sm text-content-muted line-clamp-2">{tier.description}</p>
                     </div>
                     <div className="mt-4 space-y-3">
                       <div className="rounded-xl border border-line/40 bg-content/5 p-4">
@@ -148,36 +161,36 @@ export default function PanelCategoryPage({ params }: { params: Promise<{ catego
                             <HardDrive aria-hidden size={14} className="text-accent" />
                             <div>
                               <p className="text-xs text-content-muted">RAM</p>
-                              <p className="font-semibold text-content">{panel.provision?.memoryMb} MB</p>
+                              <p className="font-semibold text-content">{tier.provision.memoryMb} MB</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-content/10">
                             <Database aria-hidden size={14} className="text-accent" />
                             <div>
                               <p className="text-xs text-content-muted">Disk</p>
-                              <p className="font-semibold text-content">{panel.provision?.diskMb} MB</p>
+                              <p className="font-semibold text-content">{tier.provision.diskMb} MB</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-content/10">
                             <Cpu aria-hidden size={14} className="text-accent" />
                             <div>
                               <p className="text-xs text-content-muted">CPU</p>
-                              <p className="font-semibold text-content">{panel.provision?.cpuPercent}%</p>
+                              <p className="font-semibold text-content">{tier.provision.cpuPercent}%</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-content/10">
                             <ShieldCheck aria-hidden size={14} className="text-accent" />
                             <div>
                               <p className="text-xs text-content-muted">DB / Backup</p>
-                              <p className="font-semibold text-content">{panel.provision?.databases} / {panel.provision?.backups}</p>
+                              <p className="font-semibold text-content">{tier.provision.databases} / {tier.provision.backups}</p>
                             </div>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between pt-4 border-t border-line/40">
-                        <span className="text-2xl font-bold text-accent">Rp{formatRupiah(panel.price)}<span className="text-sm font-normal text-content-muted">/bln</span></span>
+                        <span className="text-2xl font-bold text-accent">Rp{formatRupiah(tier.price)}<span className="text-sm font-normal text-content-muted">/bln</span></span>
                         <div className="flex items-center gap-2 text-accent font-medium">
-                          Pilih & Konfigurasi
+                          Pilih & Konfigurasi Egg
                           <ChevronRight aria-hidden size={16} />
                         </div>
                       </div>

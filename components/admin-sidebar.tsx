@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, Home, Package, QrCode, ReceiptText, ScrollText, Server, Settings, Users, Ticket } from 'lucide-react';
+import { BarChart3, Home, Package, QrCode, ReceiptText, ScrollText, Server, Settings, Users, Ticket, CreditCard } from 'lucide-react';
 import { useSettings } from '@/components/settings-provider';
 import { AppSidebar } from '@/components/app-sidebar';
 
@@ -14,6 +14,7 @@ export function AdminSidebar({ username }: { username: string }) {
     { href: '/admin/orders' as const, label: 'Order', icon: ReceiptText },
     { href: '/admin/users' as const, label: 'Pengguna', icon: Users },
     { href: '/admin/panels' as const, label: 'Panel', icon: Server },
+    { href: '/admin/panel-sales' as const, label: 'Panel Sales', icon: CreditCard },
     { href: '/admin/vouchers' as const, label: 'Voucher', icon: Ticket },
     { href: '/admin/logs' as const, label: 'Log Aktivitas', icon: ScrollText },
     { href: '/admin/settings' as const, label: 'Pengaturan Situs', icon: Settings },

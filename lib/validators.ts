@@ -184,6 +184,7 @@ const panelRamTierSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999),
   active: z.boolean(),
   provision: provisionSchema,
+  maxPurchasePerUser: z.number().int().min(0).max(100).default(0).optional(), // 0 = unlimited
 });
 
 export const panelRamTiersSettingsSchema = z.array(panelRamTierSchema).max(50);

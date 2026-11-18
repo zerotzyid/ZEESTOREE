@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Server, Cpu, HardDrive, Database, ShieldCheck, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Server, Cpu, HardDrive, Database, ShieldCheck, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, UserCheck } from 'lucide-react';
 import { useSettings } from '@/components/settings-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,16 +10,28 @@ import { toast } from 'sonner';
 
 export const dynamic = 'force-dynamic';
 
-interface PanelType {
+interface PanelCategory {
   id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  active: boolean;
+  sortOrder: number;
+  pterodactylPanelId?: string;
+}
+
+interface PanelRamTier {
+  id: string;
+  categoryId: string;
   name: string;
   description: string;
   price: number;
   durationDays: number;
-  category: 'pterodactyl' | 'custom';
+  sortOrder: number;
+  active: boolean;
+  maxPurchasePerUser: number; // 0 = unlimited
   provision: {
-    panelId: string;
-    eggId: number;
     memoryMb: number;
     swapMb: number;
     diskMb: number;
@@ -33,9 +45,7 @@ interface PanelType {
     databases: number;
     allocations: number;
     backups: number;
-  } | null;
-  active: boolean;
-  sortOrder: number;
+  };
 }
 
 interface EggOption {
@@ -66,10 +76,12 @@ interface NestWithEggs {
 export default function PanelConfigurePage({ params }: { params: Promise<{ category: string; panelId: string }> }) {
   const { settings } = useSettings();
 
-  const panelTypes = settings?.panelTypes?.filter((p) => p.active) ?? [];
-  const [panel, setPanel] = useState<PanelType | null>(null);
+  const panelCategories = settings?.panelCategories?.filter((p) => p.active) ?? [];
+  const panelRamTiers = settings?.panelRamTiers?.filter((p) => p.active) ?? [];
+
+  const [tier, setTier] = useState<PanelRamTier | null>(null);
   const [category, setCategory] = useState<string>('');
-  const [panelId, setPanelId] = useState<string>('');
+  const [tierId, setTierId] = useState<string>('');
 
   const [eggs, setEggs] = useState<EggOption[]>([]);
   const [nests, setNests] = useState<NestWithEggs[]>([]);
@@ -77,37 +89,49 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
   const [loadingEggs, setLoadingEggs] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedNests, setExpandedNests] = useState<Set<number>>(new Set());
+  const [userPurchaseCount, setUserPurchaseCount] = useState<number>(0);
+  const [checkingPurchase, setCheckingPurchase] = useState(false);
 
   // Initialize from URL
   useEffect(() => {
-    const path = window.location.pathname;
-    const match = path.match(/\/panel-beli\/([^/]+)\/([^/]+)\/configure/);
-    if (match) {
-      const cat = match[1];
-      const pid = match[2];
+    params.then((p) => {
+      const cat = p.category;
+      const tid = p.panelId;
       setCategory(cat);
-      setPanelId(pid);
-      const found = panelTypes.find((p) => p.id === pid && p.category === cat);
+      setTierId(tid);
+      const found = panelRamTiers.find((t) => t.id === tid);
       if (found) {
-        setPanel(found);
-        // Set default egg from provision
-        if (found.provision?.eggId) {
-          setSelectedEggId(found.provision.eggId);
-        }
+        setTier(found);
+        // Check user's purchase count for this tier
+        checkUserPurchases(found.id);
       }
-    }
+    });
     fetchEggs();
   }, []);
 
-  const fetchEggs = useCallback(async () => {
-    if (!panel?.provision?.panelId) {
-      // Try to get panel config from settings
-      const pteroConfig = settings?.integrations;
-      if (!pteroConfig?.resellerBaseUrl) {
-        setError('Konfigurasi panel Pterodactyl belum diatur admin.');
-        setLoadingEggs(false);
-        return;
+  const checkUserPurchases = async (tierId: string) => {
+    setCheckingPurchase(true);
+    try {
+      const res = await fetch(`/api/user/purchase-count?productId=${tierId}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setUserPurchaseCount(data.count || 0);
+      } else {
+        setUserPurchaseCount(0);
       }
+    } catch (e) {
+      console.error('Failed to check purchase count:', e);
+      setUserPurchaseCount(0);
+    } finally {
+      setCheckingPurchase(false);
+    }
+  };
+
+  const fetchEggs = useCallback(async () => {
+    if (!tier?.provision) {
+      setError('Konfigurasi provisioning tidak ditemukan.');
+      setLoadingEggs(false);
+      return;
     }
 
     try {
@@ -239,7 +263,7 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
     } finally {
       setLoadingEggs(false);
     }
-  }, [panel, settings, selectedEggId]);
+  }, [tier, settings, selectedEggId]);
 
   const toggleNest = (nestId: number) => {
     setExpandedNests((prev) => {
@@ -259,27 +283,34 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
       return;
     }
 
+    // Check max purchase limit
+    if (tier && tier.maxPurchasePerUser > 0 && userPurchaseCount >= tier.maxPurchasePerUser) {
+      toast.error(`Anda sudah mencapai batas pembelian untuk produk ini (maks ${tier.maxPurchasePerUser}x).`);
+      return;
+    }
+
     // Store selection in sessionStorage for checkout
     const selectedEgg = eggs.find((e) => e.id === selectedEggId);
     const config = {
-      panelId: panel?.id,
-      panelName: panel?.name,
+      tierId: tier?.id,
+      tierName: tier?.name,
       category: category,
-      provision: panel?.provision,
+      provision: tier?.provision,
       selectedEggId: selectedEggId,
       selectedEggName: selectedEgg?.name,
       selectedEggNestName: selectedEgg?.nestName,
-      price: panel?.price,
-      durationDays: panel?.durationDays,
+      price: tier?.price,
+      durationDays: tier?.durationDays,
+      maxPurchasePerUser: tier?.maxPurchasePerUser,
     };
 
     sessionStorage.setItem('panel_config', JSON.stringify(config));
 
     // Redirect to checkout
-    window.location.href = `/checkout?type=panel&panel_id=${panel?.id}&egg_id=${selectedEggId}`;
+    window.location.href = `/checkout?type=panel&tier_id=${tier?.id}&egg_id=${selectedEggId}`;
   };
 
-  if (!panel) {
+  if (!tier) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
         <Link href="/panel-beli" className="mb-6 inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line px-4 text-sm text-content-muted transition-colors hover:text-content">
@@ -288,14 +319,17 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
         </Link>
         <div className="text-center py-12">
           <AlertCircle aria-hidden size={48} className="mx-auto mb-4 text-orange-500" />
-          <h3 className="text-lg font-semibold text-content">Panel tidak ditemukan</h3>
-          <p className="mt-2 text-sm text-content-muted">Panel yang dipilih tidak valid atau tidak aktif.</p>
+          <h3 className="text-lg font-semibold text-content">Tier tidak ditemukan</h3>
+          <p className="mt-2 text-sm text-content-muted">Tier yang dipilih tidak valid atau tidak aktif.</p>
         </div>
       </div>
     );
   }
 
   const categoryLabel = category === 'pterodactyl' ? 'Panel Pterodactyl' : 'Panel Custom';
+
+  // Check purchase limit
+  const isPurchaseLimited = tier.maxPurchasePerUser > 0 && userPurchaseCount >= tier.maxPurchasePerUser;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
@@ -310,17 +344,21 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
       {/* Progress Steps */}
       <div className="mb-8 flex items-center justify-center">
         <div className="flex items-center gap-4">
-          <StepCircle step={1} active={false} completed={true}>Kategori</StepCircle>
+          <StepCircle step={1} completed={true}>Kategori</StepCircle>
           <StepLine completed={true} />
-          <StepCircle step={2} active={false} completed={true}>Spesifikasi</StepCircle>
+          <StepCircle step={2} completed={true}>Spesifikasi RAM</StepCircle>
           <StepLine completed={true} />
-          <StepCircle step={3} active={true} completed={true}>Jenis Game</StepCircle>
-          <StepLine completed={false} />
-          <StepCircle step={4} active={false} completed={false}>Pembayaran</StepCircle>
+          <StepCircle step={3} active={true} completed={true}>Jenis Game (Egg)</StepCircle>
+          <StepLine />
+          <StepCircle step={4}>Pembayaran</StepCircle>
+          <StepLine />
+          <StepCircle step={5}>Provisioning</StepCircle>
+          <StepLine />
+          <StepCircle step={6}>Kelola Panel</StepCircle>
         </div>
       </div>
 
-      {/* Panel Summary */}
+      {/* Tier Summary */}
       <Card className="mb-6 rounded-2xl border border-line bg-gradient-to-r from-accent/5 to-transparent">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -330,30 +368,53 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
               </div>
               <div>
                 <p className="text-sm text-content-muted">{categoryLabel}</p>
-                <h3 className="text-xl font-semibold text-content">{panel.name}</h3>
-                <p className="text-sm text-content-muted">{panel.description}</p>
+                <h3 className="text-xl font-semibold text-content">{tier.name}</h3>
+                <p className="text-sm text-content-muted">{tier.description}</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-4 text-right sm:text-left">
               <div className="flex items-center gap-4 text-sm text-content-muted">
                 <div className="flex items-center gap-1">
                   <HardDrive aria-hidden size={14} />
-                  <span>{panel.provision?.memoryMb} MB RAM</span>
+                  <span>{tier.provision.memoryMb} MB RAM</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Database aria-hidden size={14} />
-                  <span>{panel.provision?.diskMb} MB Disk</span>
+                  <span>{tier.provision.diskMb} MB Disk</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Cpu aria-hidden size={14} />
-                  <span>{panel.provision?.cpuPercent}% CPU</span>
+                  <span>{tier.provision.cpuPercent}% CPU</span>
                 </div>
+                {tier.maxPurchasePerUser > 0 && (
+                  <div className="flex items-center gap-1 text-orange-500">
+                    <UserCheck aria-hidden size={14} />
+                    <span>Maks {tier.maxPurchasePerUser}x per user</span>
+                  </div>
+                )}
               </div>
-              <div className="text-2xl font-bold text-accent">Rp{formatRupiah(panel.price)}<span className="text-sm font-normal text-content-muted">/bln</span></div>
+              <div className="text-2xl font-bold text-accent">Rp{formatRupiah(tier.price)}<span className="text-sm font-normal text-content-muted">/bln</span></div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Purchase Limit Warning */}
+      {tier.maxPurchasePerUser > 0 && (
+        <div className="mb-6 rounded-xl border border-orange-300/50 bg-orange-500/5 p-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle aria-hidden size={20} className="text-orange-500" />
+            <div>
+              <p className="font-medium text-orange-300">Batas Pembelian</p>
+              <p className="text-sm text-orange-200">
+                Produk ini dibatasi maksimal <strong>{tier.maxPurchasePerUser}x per user</strong>.
+                Anda sudah membeli <strong>{userPurchaseCount}x</strong>.
+                {isPurchaseLimited && ' Batas tercapai, tidak bisa membeli lagi.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Egg Selection */}
       <Card className="mb-6 rounded-2xl border border-line">
@@ -455,20 +516,30 @@ export default function PanelConfigurePage({ params }: { params: Promise<{ categ
           className="w-full"
           size="lg"
           onClick={handleContinue}
-          disabled={loadingEggs || !selectedEggId}
+          disabled={loadingEggs || !selectedEggId || isPurchaseLimited || checkingPurchase}
         >
-          <ChevronRight aria-hidden size={20} className="mr-2" />
-          Lanjut ke Pembayaran
+          {checkingPurchase ? (
+            <>
+              <Loader2 aria-hidden size={20} className="mr-2 animate-spin" />
+              Memeriksa batas pembelian...
+            </>
+          ) : (
+            <>
+              <ChevronRight aria-hidden size={20} className="mr-2" />
+              Lanjut ke Pembayaran
+            </>
+          )}
         </Button>
         <p className="mt-2 text-center text-xs text-content-faint">
-          Harga: Rp{formatRupiah(panel.price)}/bulan · Masa aktif: {panel.durationDays} hari
+          Harga: Rp{formatRupiah(tier.price)}/bulan · Masa aktif: {tier.durationDays} hari
+          {tier.maxPurchasePerUser > 0 && ` · Batas: {tier.maxPurchasePerUser}x per user`}
         </p>
       </div>
     </div>
   );
 }
 
-function StepCircle({ step, active, completed, children }: { step: number; active: boolean; completed: boolean; children: React.ReactNode }) {
+function StepCircle({ step, active, completed, children }: { step: number; active?: boolean; completed?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-1">
       <div className={`relative flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${
