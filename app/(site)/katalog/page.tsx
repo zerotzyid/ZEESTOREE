@@ -35,6 +35,66 @@ function productDescription(product: ProductListItem): string | null {
     : null;
 }
 
+function PanelTierCard({ panelCat, catIndex, reduceMotion }: { 
+  panelCat: { category: { id: string; name: string; description: string; icon: string; key: string }; tiers: any[] }; 
+  catIndex: number; 
+  reduceMotion: boolean | null 
+}) {
+  const motionEnabled = reduceMotion === false;
+  return (
+    <motion.div
+      key={panelCat.category.id}
+      initial={motionEnabled ? false : { opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-30px' }}
+      transition={{
+        duration: 0.35,
+        delay: Math.min(catIndex * 0.06, 0.3),
+        ease: 'easeOut',
+      }}
+      className="h-full"
+    >
+      <Link
+        href={`/panel-beli/${panelCat.category.key}` as any}
+        className="block h-full"
+      >
+        <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
+          <div className="relative aspect-[16/9] overflow-hidden rounded-t-3xl bg-content/10">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <LucideIcon name={panelCat.category.icon} size={48} className="text-content-muted/50 group-hover:text-accent transition-colors" />
+            </div>
+            <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+              {panelCat.tiers.length} tier RAM
+            </span>
+          </div>
+          <div className="p-5">
+            <h3 className="text-lg font-semibold text-content">{panelCat.category.name}</h3>
+            <p className="mt-1 text-sm text-content-muted line-clamp-2">
+              {panelCat.category.description}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {panelCat.tiers.slice(0, 3).map((tier: any) => (
+                <span key={tier.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-content/10 text-[10px] font-medium text-content-muted">
+                  {tier.provision.memoryMb}MB
+                </span>
+              ))}
+              {panelCat.tiers.length > 3 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-[10px] font-medium text-accent">
+                  +{panelCat.tiers.length - 3} tier lagi
+                </span>
+              )}
+            </div>
+            <div className="mt-auto flex items-center gap-2 text-xs">
+              <ArrowRight aria-hidden size={14} className="text-accent group-hover:translate-x-1 transition-transform" />
+              <span className="font-medium text-content">Pilih spesifikasi</span>
+            </div>
+          </div>
+        </article>
+      </Link>
+    </motion.div>
+  );
+}
+
 function productImage(product: ProductListItem): string | null {
   return typeof product.image === 'string' && product.image
     ? `/api/asset/${product.image}`
@@ -74,36 +134,39 @@ export default function KatalogPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Combine regular categories with panel categories from settings
+  // Combine regular categories with panel tiers from settings
   const allCategories = useMemo(() => {
     if (!settings) return { regular: categories, panel: [] as any[] };
     
-    const panelCats = settings.panelCategories?.filter((c) => c.active) ?? [];
-    const panelTiers = settings.panelRamTiers?.filter((t) => t.active) ?? [];
+    const panelTiers = settings.panelTiers?.filter((t) => t.active) ?? [];
+    const panelRamOptions = settings.panelRamOptions?.filter((r) => r.active) ?? [];
     
-    // Create virtual categories for panel tiers (grouped by panel category)
-    const panelCategoryMap = new Map<string, { 
+    // Create virtual categories for panel tiers (grouped by tier)
+    // Create virtual categories for panel tiers (grouped by tier)
+    type PanelCategoryEntry = {
       category: { id: string; name: string; description: string; icon: string; key: string };
-      tiers: typeof panelTiers;
-    }>();
+      tiers: typeof panelRamOptions;
+    };
     
-    for (const panelCat of panelCats) {
-      const tiers = panelTiers.filter((t) => t.categoryId === panelCat.id);
-      if (tiers.length > 0) {
-        panelCategoryMap.set(panelCat.id, {
+    const panelEntries: PanelCategoryEntry[] = [];
+    
+    for (const panelTier of panelTiers) {
+      const ramOpts = panelRamOptions.filter((r) => r.tierId === panelTier.id);
+      if (ramOpts.length > 0) {
+        panelEntries.push({
           category: {
-            id: panelCat.id,
-            name: panelCat.name,
-            description: panelCat.description,
-            icon: panelCat.icon,
-            key: panelCat.key,
+            id: panelTier.id,
+            name: panelTier.name,
+            description: panelTier.description,
+            icon: panelTier.icon,
+            key: panelTier.key,
           },
-          tiers,
+          tiers: ramOpts,
         });
       }
     }
 
-    return { regular: categories, panel: Array.from(panelCategoryMap.values()) };
+    return { regular: categories, panel: panelEntries };
   }, [categories, settings]);
 
   const filtered = useMemo(() => {
@@ -233,57 +296,8 @@ export default function KatalogPage() {
                   <h3 className="mb-4 text-sm font-semibold text-content-muted uppercase tracking-wide">Panel Server (Pterodactyl)</h3>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {allCategories.panel.map((panelCat, catIndex) => (
-                      <motion.div
-                        key={panelCat.category.id}
-                        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, margin: '-30px' }}
-                        transition={{
-                          duration: 0.35,
-                          delay: Math.min(catIndex * 0.06, 0.3),
-                          ease: 'easeOut',
-                        }}
-                        className="h-full"
-                      >
-                        <Link
-                          href={`/panel-beli/${panelCat.category.key}`}
-                          className="block h-full"
-                        >
-                          <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
-                            <div className="relative aspect-[16/9] overflow-hidden rounded-t-3xl bg-content/10">
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <LucideIcon name={panelCat.category.icon} size={48} className="text-content-muted/50 group-hover:text-accent transition-colors" />
-                              </div>
-                              <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
-                                {panelCat.tiers.length} tier RAM
-                              </span>
-                            </div>
-                            <div className="p-5">
-                              <h3 className="text-lg font-semibold text-content">{panelCat.category.name}</h3>
-                              <p className="mt-1 text-sm text-content-muted line-clamp-2">
-                                {panelCat.category.description}
-                              </p>
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {panelCat.tiers.slice(0, 3).map((tier: any) => (
-                                  <span key={tier.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-content/10 text-[10px] font-medium text-content-muted">
-                                    {tier.provision.memoryMb}MB
-                                  </span>
-                                ))}
-                                {panelCat.tiers.length > 3 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-[10px] font-medium text-accent">
-                                    +{panelCat.tiers.length - 3} tier lagi
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-auto flex items-center gap-2 text-xs">
-                                <ArrowRight aria-hidden size={14} className="text-accent group-hover:translate-x-1 transition-transform" />
-                                <span className="font-medium text-content">Pilih spesifikasi</span>
-                              </div>
-                            </div>
-                          </article>
-                        </Link>
-                      </motion.div>
-                    ))}
+    <PanelTierCard panelCat={panelCat} catIndex={catIndex} reduceMotion={reduceMotion} />
+))}
                   </div>
                 </div>
               )}

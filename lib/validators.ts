@@ -159,8 +159,8 @@ const panelTypeSchema = z.object({
 
 export const panelTypesSettingsSchema = z.array(panelTypeSchema).max(20);
 
-// NEW: Panel Category Schema
-const panelCategorySchema = z.object({
+// NEW: Panel Tier Schema (Main Category - represents different Pterodactyl panels)
+const panelTierSchema = z.object({
   id: z.string().trim().min(1).max(60),
   key: z.string().trim().min(1).max(60),
   name: z.string().trim().min(1).max(100),
@@ -168,26 +168,59 @@ const panelCategorySchema = z.object({
   icon: z.string().trim().max(50),
   active: z.boolean(),
   sortOrder: z.number().int().min(0).max(9999),
-  pterodactylPanelId: z.string().trim().max(60).optional(),
+  pterodactyl: z.object({
+    panelId: z.string().trim().max(60).optional(),
+    baseUrl: z.string().trim().url('URL tidak valid.').max(200),
+    apiKey: z.string().trim().max(200),
+  }),
 });
 
-export const panelCategoriesSettingsSchema = z.array(panelCategorySchema).max(20);
+export const panelTiersSettingsSchema = z.array(panelTierSchema).max(20);
 
-// NEW: Panel RAM Tier Schema
-const panelRamTierSchema = z.object({
+// NEW: Panel RAM Option Schema
+const panelRamOptionSchema = z.object({
   id: z.string().trim().min(1).max(60),
-  categoryId: z.string().trim().min(1).max(60),
+  tierId: z.string().trim().min(1).max(60),
   name: z.string().trim().min(1).max(100),
-  description: z.string().trim().max(500),
+  memoryMb: z.number().int().min(0).max(1048576), // 0 = custom
   price: z.number().int().min(0).max(1000000000),
   durationDays: z.number().int().min(1).max(3650),
-  sortOrder: z.number().int().min(0).max(9999),
+  maxPurchasePerUser: z.number().int().min(0).max(100).default(0),
   active: z.boolean(),
-  provision: provisionSchema,
-  maxPurchasePerUser: z.number().int().min(0).max(100).default(0).optional(), // 0 = unlimited
+  sortOrder: z.number().int().min(0).max(9999),
+  isCustom: z.boolean(),
+  customMaxMb: z.number().int().min(1024).max(10485760).optional(),
 });
 
-export const panelRamTiersSettingsSchema = z.array(panelRamTierSchema).max(50);
+export const panelRamOptionsSettingsSchema = z.array(panelRamOptionSchema).max(100);
+
+// NEW: Panel CPU Option Schema
+const panelCpuOptionSchema = z.object({
+  id: z.string().trim().min(1).max(60),
+  tierId: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(100),
+  cpuPercent: z.number().int().min(0).max(100000), // 0 = unlimited
+  priceModifier: z.number().int().min(0).max(1000000000),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(9999),
+});
+
+export const panelCpuOptionsSettingsSchema = z.array(panelCpuOptionSchema).max(50);
+
+// NEW: Panel Disk Option Schema
+const panelDiskOptionSchema = z.object({
+  id: z.string().trim().min(1).max(60),
+  tierId: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(100),
+  diskMb: z.number().int().min(0).max(10485760), // 0 = custom
+  priceModifier: z.number().int().min(0).max(1000000000),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(9999),
+  isCustom: z.boolean(),
+  customMaxMb: z.number().int().min(1024).max(104857600).optional(),
+});
+
+export const panelDiskOptionsSettingsSchema = z.array(panelDiskOptionSchema).max(100);
 
 export const limitsSettingsSchema = z.object({
   maxProductsPerUser: z.number().int().min(1).max(100),
@@ -207,8 +240,10 @@ export const settingsPatchSchema = z
     integrations: integrationsSettingsSchema.optional(),
     limits: limitsSettingsSchema.optional(),
     panelTypes: panelTypesSettingsSchema.optional(),
-    panelCategories: panelCategoriesSettingsSchema.optional(),
-    panelRamTiers: panelRamTiersSettingsSchema.optional(),
+    panelTiers: panelTiersSettingsSchema.optional(),
+    panelRamOptions: panelRamOptionsSettingsSchema.optional(),
+    panelCpuOptions: panelCpuOptionsSettingsSchema.optional(),
+    panelDiskOptions: panelDiskOptionsSettingsSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'Tidak ada bagian yang dikirim.' });
 

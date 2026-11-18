@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { computeAccentVars } from '@/lib/accent';
-import type { Settings, PanelType, PanelCategory, PanelRamTier } from '@/lib/settings-defaults';
+import type { Settings, PanelType, PanelTier, PanelRamOption, PanelCpuOption, PanelDiskOption, PanelCategory, PanelRamTier } from '@/lib/settings-defaults';
 
 type SectionKey = keyof Settings;
 

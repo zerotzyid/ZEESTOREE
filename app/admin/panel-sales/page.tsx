@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Save, Plus, Trash2, Server, Box, HardDrive, Cpu, Database, ExternalLink, ShieldCheck, GripVertical, ArrowUpDown, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Save, Plus, Trash2, Server, Box, HardDrive, Cpu, Database, ExternalLink, ShieldCheck, GripVertical, ArrowUpDown, Eye, EyeOff, MemoryStick, Cpu as CpuIcon, HardDrive as DiskIcon, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/components/settings-provider';
 import { Button } from '@/components/ui/button';
@@ -12,23 +12,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LucideIcon } from '@/lib/icon-map';
-import type { PanelCategory, PanelRamTier } from '@/lib/settings-defaults';
+import type { PanelTier, PanelRamOption, PanelCpuOption, PanelDiskOption } from '@/lib/settings-defaults';
 
 export default function PanelSalesPage() {
   const { settings } = useSettings();
   const [draft, setDraft] = useState<{
-    panelCategories: PanelCategory[];
-    panelRamTiers: PanelRamTier[];
+    panelTiers: PanelTier[];
+    panelRamOptions: PanelRamOption[];
+    panelCpuOptions: PanelCpuOption[];
+    panelDiskOptions: PanelDiskOption[];
   } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'categories' | 'tiers'>('categories');
+  const [activeTab, setActiveTab] = useState<'tiers' | 'ram' | 'cpu' | 'disk'>('tiers');
   const [expandedTier, setExpandedTier] = useState<string | null>(null);
 
   useEffect(() => {
     if (settings) {
       setDraft({
-        panelCategories: settings.panelCategories || [],
-        panelRamTiers: settings.panelRamTiers || [],
+        panelTiers: settings.panelTiers || [],
+        panelRamOptions: settings.panelRamOptions || [],
+        panelCpuOptions: settings.panelCpuOptions || [],
+        panelDiskOptions: settings.panelDiskOptions || [],
       });
     }
   }, [settings]);
@@ -41,8 +45,10 @@ export default function PanelSalesPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          panelCategories: draft.panelCategories,
-          panelRamTiers: draft.panelRamTiers,
+          panelTiers: draft.panelTiers,
+          panelRamOptions: draft.panelRamOptions,
+          panelCpuOptions: draft.panelCpuOptions,
+          panelDiskOptions: draft.panelDiskOptions,
         }),
       });
       if (!res.ok) throw new Error('Gagal menyimpan ke server');
@@ -54,90 +60,147 @@ export default function PanelSalesPage() {
     }
   };
 
-  const addCategory = () => {
+  // ===== TIER MANAGEMENT =====
+  const addTier = () => {
     if (!draft) return;
-    const newCat: PanelCategory = {
-      id: `cat-${Date.now()}`,
+    const newTier: PanelTier = {
+      id: `tier-${Date.now()}`,
       key: '',
       name: '',
       description: '',
       icon: 'Server',
       active: true,
-      sortOrder: (draft.panelCategories?.length ?? 0) + 1,
-      pterodactylPanelId: '',
-    };
-    setDraft({ ...draft, panelCategories: [...(draft.panelCategories || []), newCat] });
-  };
-
-  const removeCategory = (index: number) => {
-    if (!draft) return;
-    const cats = [...draft.panelCategories];
-    cats.splice(index, 1);
-    setDraft({ ...draft, panelCategories: cats });
-  };
-
-  const updateCategory = (index: number, updated: Partial<PanelCategory>) => {
-    if (!draft) return;
-    const cats = [...draft.panelCategories];
-    cats[index] = { ...cats[index], ...updated };
-    setDraft({ ...draft, panelCategories: cats });
-  };
-
-  const addTier = () => {
-    if (!draft) return;
-    const firstCat = draft.panelCategories?.[0]?.id || 'cat-pterodactyl';
-    const newTier: PanelRamTier = {
-      id: `tier-${Date.now()}`,
-      categoryId: firstCat,
-      name: '',
-      description: '',
-      price: 0,
-      durationDays: 30,
-      sortOrder: (draft.panelRamTiers?.length ?? 0) + 1,
-      active: true,
-      maxPurchasePerUser: 0,
-      provision: {
-        memoryMb: 1024,
-        swapMb: 128,
-        diskMb: 2048,
-        cpuPercent: 50,
-        ioWeight: 500,
-        dockerImage: null,
-        startup: null,
-        environment: {},
-        allocationMode: 'auto',
-        allocationId: null,
-        databases: 1,
-        allocations: 1,
-        backups: 1,
+      sortOrder: (draft.panelTiers?.length ?? 0) + 1,
+      pterodactyl: {
+        panelId: '',
+        baseUrl: 'https://',
+        apiKey: '',
       },
     };
-    setDraft({ ...draft, panelRamTiers: [...(draft.panelRamTiers || []), newTier] });
+    setDraft({ ...draft, panelTiers: [...(draft.panelTiers || []), newTier] });
   };
 
   const removeTier = (index: number) => {
     if (!draft) return;
-    const tiers = [...draft.panelRamTiers];
+    const tiers = [...draft.panelTiers];
+    const removedTierId = tiers[index].id;
     tiers.splice(index, 1);
-    setDraft({ ...draft, panelRamTiers: tiers });
+    // Also remove associated options
+    const newRam = draft.panelRamOptions.filter((r) => r.tierId !== removedTierId);
+    const newCpu = draft.panelCpuOptions.filter((c) => c.tierId !== removedTierId);
+    const newDisk = draft.panelDiskOptions.filter((d) => d.tierId !== removedTierId);
+    setDraft({ ...draft, panelTiers: tiers, panelRamOptions: newRam, panelCpuOptions: newCpu, panelDiskOptions: newDisk });
   };
 
-  const updateTier = (index: number, updated: Partial<PanelRamTier>) => {
+  const updateTier = (index: number, updated: Partial<PanelTier>) => {
     if (!draft) return;
-    const tiers = [...draft.panelRamTiers];
+    const tiers = [...draft.panelTiers];
     tiers[index] = { ...tiers[index], ...updated };
-    setDraft({ ...draft, panelRamTiers: tiers });
+    setDraft({ ...draft, panelTiers: tiers });
   };
 
-  const toggleTierExpand = (id: string) => {
-    setExpandedTier((prev) => (prev === id ? null : id));
+  // ===== RAM OPTION MANAGEMENT =====
+  const addRamOption = (tierId: string) => {
+    if (!draft) return;
+    const tierRamCount = draft.panelRamOptions.filter((r) => r.tierId === tierId).length;
+    const newRam: PanelRamOption = {
+      id: `ram-${Date.now()}`,
+      tierId,
+      name: '',
+      memoryMb: 1024,
+      price: 0,
+      durationDays: 30,
+      maxPurchasePerUser: 0,
+      active: true,
+      sortOrder: tierRamCount + 1,
+      isCustom: false,
+    };
+    setDraft({ ...draft, panelRamOptions: [...(draft.panelRamOptions || []), newRam] });
   };
 
-  const categoryOptions = draft?.panelCategories?.map((c) => (
-    <option key={c.id} value={c.id} className="bg-surface-raised text-content">
-      {c.name} ({c.key})
-    </option>
-  ));
+  const removeRamOption = (index: number) => {
+    if (!draft) return;
+    const ram = [...draft.panelRamOptions];
+    ram.splice(index, 1);
+    setDraft({ ...draft, panelRamOptions: ram });
+  };
+
+  const updateRamOption = (index: number, updated: Partial<PanelRamOption>) => {
+    if (!draft) return;
+    const ram = [...draft.panelRamOptions];
+    ram[index] = { ...ram[index], ...updated };
+    setDraft({ ...draft, panelRamOptions: ram });
+  };
+
+  // ===== CPU OPTION MANAGEMENT =====
+  const addCpuOption = (tierId: string) => {
+    if (!draft) return;
+    const tierCpuCount = draft.panelCpuOptions.filter((c) => c.tierId === tierId).length;
+    const newCpu: PanelCpuOption = {
+      id: `cpu-${Date.now()}`,
+      tierId,
+      name: '',
+      cpuPercent: 500,
+      priceModifier: 0,
+      active: true,
+      sortOrder: tierCpuCount + 1,
+    };
+    setDraft({ ...draft, panelCpuOptions: [...(draft.panelCpuOptions || []), newCpu] });
+  };
+
+  const removeCpuOption = (index: number) => {
+    if (!draft) return;
+    const cpu = [...draft.panelCpuOptions];
+    cpu.splice(index, 1);
+    setDraft({ ...draft, panelCpuOptions: cpu });
+  };
+
+  const updateCpuOption = (index: number, updated: Partial<PanelCpuOption>) => {
+    if (!draft) return;
+    const cpu = [...draft.panelCpuOptions];
+    cpu[index] = { ...cpu[index], ...updated };
+    setDraft({ ...draft, panelCpuOptions: cpu });
+  };
+
+  // ===== DISK OPTION MANAGEMENT =====
+  const addDiskOption = (tierId: string) => {
+    if (!draft) return;
+    const tierDiskCount = draft.panelDiskOptions.filter((d) => d.tierId === tierId).length;
+    const newDisk: PanelDiskOption = {
+      id: `disk-${Date.now()}`,
+      tierId,
+      name: '',
+      diskMb: 10240,
+      priceModifier: 0,
+      active: true,
+      sortOrder: tierDiskCount + 1,
+      isCustom: false,
+    };
+    setDraft({ ...draft, panelDiskOptions: [...(draft.panelDiskOptions || []), newDisk] });
+  };
+
+  const removeDiskOption = (index: number) => {
+    if (!draft) return;
+    const disk = [...draft.panelDiskOptions];
+    disk.splice(index, 1);
+    setDraft({ ...draft, panelDiskOptions: disk });
+  };
+
+  const updateDiskOption = (index: number, updated: Partial<PanelDiskOption>) => {
+    if (!draft) return;
+    const disk = [...draft.panelDiskOptions];
+    disk[index] = { ...disk[index], ...updated };
+    setDraft({ ...draft, panelDiskOptions: disk });
+  };
+
+  // Helper functions
+  const getRamOptionsForTier = (tierId: string) => draft?.panelRamOptions.filter((r) => r.tierId === tierId).sort((a, b) => a.sortOrder - b.sortOrder) || [];
+  const getCpuOptionsForTier = (tierId: string) => draft?.panelCpuOptions.filter((c) => c.tierId === tierId).sort((a, b) => a.sortOrder - b.sortOrder) || [];
+  const getDiskOptionsForTier = (tierId: string) => draft?.panelDiskOptions.filter((d) => d.tierId === tierId).sort((a, b) => a.sortOrder - b.sortOrder) || [];
+
+  const formatRam = (mb: number) => mb === 0 ? 'Custom' : `${mb / 1024}GB`;
+  const formatDisk = (mb: number) => mb === 0 ? 'Custom' : `${mb / 1024}GB`;
+  const formatCpu = (pct: number) => pct === 0 ? 'Unlimited' : `${pct}%`;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -145,10 +208,10 @@ export default function PanelSalesPage() {
         <div>
           <h1 className="text-2xl font-semibold text-content flex items-center gap-2">
             <Server className="text-accent" size={24} />
-            Kelola Panel Sales
+            Kelola Panel Sales (Tier System)
           </h1>
           <p className="text-sm text-content-muted">
-            Kelola kategori panel, tier RAM, dan spesifikasi provisioning untuk sistem pembelian panel Pterodactyl.
+            Tier = Panel Pterodactyl berbeda (API/Location). Setiap Tier punya opsi RAM, CPU, Disk sendiri.
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="w-fit">
@@ -157,47 +220,42 @@ export default function PanelSalesPage() {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'categories' | 'tiers')} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="categories">
-            <Server className="mr-2 h-4 w-4" />
-            Kategori Panel
-          </TabsTrigger>
-          <TabsTrigger value="tiers">
-            <HardDrive className="mr-2 h-4 w-4" />
-            Tier RAM
-          </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'tiers' | 'ram' | 'cpu' | 'disk')} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="tiers"><Server className="mr-2 h-4 w-4" />Panel Tier</TabsTrigger>
+          <TabsTrigger value="ram"><MemoryStick className="mr-2 h-4 w-4" />RAM Options</TabsTrigger>
+          <TabsTrigger value="cpu"><CpuIcon className="mr-2 h-4 w-4" />CPU Options</TabsTrigger>
+          <TabsTrigger value="disk"><DiskIcon className="mr-2 h-4 w-4" />Disk Options</TabsTrigger>
         </TabsList>
 
-        {/* KATEGORI PANEL */}
-        <TabsContent value="categories" className="mt-6">
+        {/* TIERS TAB */}
+        <TabsContent value="tiers" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                Daftar Kategori Panel
-                <Button variant="outline" size="sm" onClick={addCategory}>
+                Daftar Panel Tier
+                <Button variant="outline" size="sm" onClick={addTier}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Tambah Kategori
+                  Tambah Tier
                 </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {draft?.panelCategories?.length === 0 ? (
+              {draft?.panelTiers?.length === 0 ? (
                 <div className="text-center py-12">
                   <Server className="mx-auto mb-4 h-12 w-12 text-content-muted/30" />
-                  <h3 className="text-lg font-semibold text-content">Belum ada kategori panel</h3>
-                  <p className="mt-2 text-sm text-content-muted">Tambah kategori pertama (contoh: Panel Pterodactyl, Panel Custom).</p>
+                  <h3 className="text-lg font-semibold text-content">Belum ada Panel Tier</h3>
+                  <p className="mt-2 text-sm text-content-muted">Tambah Tier pertama (misal: Panel Indonesia 1, Panel Singapore, dll).</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {draft?.panelCategories?.map((cat, index) => (
-                    <CategoryCard
-                      key={cat.id}
-                      cat={cat}
+                  {draft?.panelTiers?.map((tier, index) => (
+                    <TierCard
+                      key={tier.id}
+                      tier={tier}
                       index={index}
-                      onUpdate={updateCategory}
-                      onRemove={removeCategory}
-                      onToggleExpand={() => {}}
+                      onUpdate={updateTier}
+                      onRemove={removeTier}
                     />
                   ))}
                 </div>
@@ -206,39 +264,165 @@ export default function PanelSalesPage() {
           </Card>
         </TabsContent>
 
-        {/* TIER RAM */}
-        <TabsContent value="tiers" className="mt-6">
+        {/* RAM OPTIONS TAB */}
+        <TabsContent value="ram" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                Daftar Tier RAM
-                <Button variant="outline" size="sm" onClick={addTier}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Tier
-                </Button>
+                RAM Options per Tier
+                <div className="flex gap-2">
+                  {draft?.panelTiers?.map((tier) => (
+                    <Button key={tier.id} variant="outline" size="sm" onClick={() => addRamOption(tier.id)}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      RAM untuk {tier.name}
+                    </Button>
+                  ))}
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {draft?.panelRamTiers?.length === 0 ? (
+              {draft?.panelTiers?.map((tier) => {
+                const ramOptions = getRamOptionsForTier(tier.id);
+                return (
+                  <div key={tier.id} className="mb-8">
+                    <h3 className="mb-4 text-lg font-medium text-content flex items-center gap-2">
+                      <MemoryStick className="text-accent" size={20} />
+                      RAM Options: {tier.name}
+                      <span className="text-sm text-content-muted">({ramOptions.length} opsi)</span>
+                    </h3>
+                    {ramOptions.length === 0 ? (
+                      <p className="text-sm text-content-muted ml-4">Belum ada opsi RAM. Klik tombol di atas untuk tambah.</p>
+                    ) : (
+                      <div className="space-y-3 ml-4">
+                        {ramOptions.map((ram, index) => (
+                          <RamOptionCard
+                            key={ram.id}
+                            ram={ram}
+                            index={index}
+                            onUpdate={updateRamOption}
+                            onRemove={removeRamOption}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {draft?.panelRamOptions?.length === 0 && (
                 <div className="text-center py-12">
-                  <HardDrive className="mx-auto mb-4 h-12 w-12 text-content-muted/30" />
-                  <h3 className="text-lg font-semibold text-content">Belum ada tier RAM</h3>
-                  <p className="mt-2 text-sm text-content-muted">Tambah tier pertama (contoh: Lite 1GB, Standard 2GB, Elite 4GB).</p>
+                  <MemoryStick className="mx-auto mb-4 h-12 w-12 text-content-muted/30" />
+                  <h3 className="text-lg font-semibold text-content">Belum ada RAM Option</h3>
+                  <p className="mt-2 text-sm text-content-muted">Pilih Tier di atas lalu tambah RAM Option.</p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {draft?.panelRamTiers?.map((tier, index) => (
-                    <TierCard
-                      key={tier.id}
-                      tier={tier}
-                      index={index}
-                      categories={draft?.panelCategories || []}
-                      onUpdate={updateTier}
-                      onRemove={removeTier}
-                      expanded={expandedTier === tier.id}
-                      onToggleExpand={toggleTierExpand}
-                    />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* CPU OPTIONS TAB */}
+        <TabsContent value="cpu" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                CPU Options per Tier
+                <div className="flex gap-2">
+                  {draft?.panelTiers?.map((tier) => (
+                    <Button key={tier.id} variant="outline" size="sm" onClick={() => addCpuOption(tier.id)}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      CPU untuk {tier.name}
+                    </Button>
                   ))}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {draft?.panelTiers?.map((tier) => {
+                const cpuOptions = getCpuOptionsForTier(tier.id);
+                return (
+                  <div key={tier.id} className="mb-8">
+                    <h3 className="mb-4 text-lg font-medium text-content flex items-center gap-2">
+                      <CpuIcon className="text-accent" size={20} />
+                      CPU Options: {tier.name}
+                      <span className="text-sm text-content-muted">({cpuOptions.length} opsi)</span>
+                    </h3>
+                    {cpuOptions.length === 0 ? (
+                      <p className="text-sm text-content-muted ml-4">Belum ada opsi CPU. Klik tombol di atas untuk tambah.</p>
+                    ) : (
+                      <div className="space-y-3 ml-4">
+                        {cpuOptions.map((cpu, index) => (
+                          <CpuOptionCard
+                            key={cpu.id}
+                            cpu={cpu}
+                            index={index}
+                            onUpdate={updateCpuOption}
+                            onRemove={removeCpuOption}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {draft?.panelCpuOptions?.length === 0 && (
+                <div className="text-center py-12">
+                  <CpuIcon className="mx-auto mb-4 h-12 w-12 text-content-muted/30" />
+                  <h3 className="text-lg font-semibold text-content">Belum ada CPU Option</h3>
+                  <p className="mt-2 text-sm text-content-muted">Pilih Tier di atas lalu tambah CPU Option.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* DISK OPTIONS TAB */}
+        <TabsContent value="disk" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                Disk Options per Tier
+                <div className="flex gap-2">
+                  {draft?.panelTiers?.map((tier) => (
+                    <Button key={tier.id} variant="outline" size="sm" onClick={() => addDiskOption(tier.id)}>
+                      <Plus className="mr-1 h-3 w-3" />
+                      Disk untuk {tier.name}
+                    </Button>
+                  ))}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {draft?.panelTiers?.map((tier) => {
+                const diskOptions = getDiskOptionsForTier(tier.id);
+                return (
+                  <div key={tier.id} className="mb-8">
+                    <h3 className="mb-4 text-lg font-medium text-content flex items-center gap-2">
+                      <DiskIcon className="text-accent" size={20} />
+                      Disk Options: {tier.name}
+                      <span className="text-sm text-content-muted">({diskOptions.length} opsi)</span>
+                    </h3>
+                    {diskOptions.length === 0 ? (
+                      <p className="text-sm text-content-muted ml-4">Belum ada opsi Disk. Klik tombol di atas untuk tambah.</p>
+                    ) : (
+                      <div className="space-y-3 ml-4">
+                        {diskOptions.map((disk, index) => (
+                          <DiskOptionCard
+                            key={disk.id}
+                            disk={disk}
+                            index={index}
+                            onUpdate={updateDiskOption}
+                            onRemove={removeDiskOption}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {draft?.panelDiskOptions?.length === 0 && (
+                <div className="text-center py-12">
+                  <DiskIcon className="mx-auto mb-4 h-12 w-12 text-content-muted/30" />
+                  <h3 className="text-lg font-semibold text-content">Belum ada Disk Option</h3>
+                  <p className="mt-2 text-sm text-content-muted">Pilih Tier di atas lalu tambah Disk Option.</p>
                 </div>
               )}
             </CardContent>
@@ -249,12 +433,11 @@ export default function PanelSalesPage() {
   );
 }
 
-function CategoryCard({ cat, index, onUpdate, onRemove, onToggleExpand }: {
-  cat: PanelCategory;
+function TierCard({ tier, index, onUpdate, onRemove }: {
+  tier: PanelTier;
   index: number;
-  onUpdate: (index: number, updated: Partial<PanelCategory>) => void;
+  onUpdate: (index: number, updated: Partial<PanelTier>) => void;
   onRemove: (index: number) => void;
-  onToggleExpand: () => void;
 }) {
   return (
     <div className="rounded-xl border border-line p-4">
@@ -262,140 +445,11 @@ function CategoryCard({ cat, index, onUpdate, onRemove, onToggleExpand }: {
         <div className="flex items-center gap-3">
           <GripVertical className="text-content-muted/50 h-5 w-5 cursor-grab" />
           <div className="h-10 w-10 rounded-lg flex items-center justify-center border border-line bg-content/5">
-            <LucideIcon name={cat.icon} size={20} className="text-accent" />
+            <LucideIcon name={tier.icon} size={20} className="text-accent" />
           </div>
           <div>
-            <p className="text-sm font-medium text-content">Kategori #{index + 1}</p>
-            <p className="text-xs text-content-faint">Key: <code>{cat.key}</code> · ID: <code>{cat.id}</code></p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={cat.active}
-            onCheckedChange={(checked) => onUpdate(index, { active: checked })}
-          />
-          <span className="text-xs text-content-muted">{cat.active ? 'Aktif' : 'Nonaktif'}</span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)} className="text-red-500 hover:text-red-400">
-            <Trash2 size={14} />
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`cat-${index}-id`}>ID</Label>
-          <Input
-            id={`cat-${index}-id`}
-            value={cat.id}
-            onChange={(e) => onUpdate(index, { id: e.target.value })}
-            maxLength={60}
-            placeholder="cat-pterodactyl"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`cat-${index}-key`}>Key (Unik, untuk routing)</Label>
-          <Input
-            id={`cat-${index}-key`}
-            value={cat.key}
-            onChange={(e) => onUpdate(index, { key: e.target.value })}
-            maxLength={60}
-            placeholder="pterodactyl"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`cat-${index}-name`}>Nama Tampilan</Label>
-          <Input
-            id={`cat-${index}-name`}
-            value={cat.name}
-            onChange={(e) => onUpdate(index, { name: e.target.value })}
-            maxLength={100}
-            placeholder="Panel Pterodactyl"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`cat-${index}-icon`}>Icon (Lucide)</Label>
-          <Input
-            id={`cat-${index}-icon`}
-            value={cat.icon}
-            onChange={(e) => onUpdate(index, { icon: e.target.value })}
-            maxLength={50}
-            placeholder="Server, Box, Cpu, Database"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <Label htmlFor={`cat-${index}-desc`}>Deskripsi</Label>
-          <Textarea
-            id={`cat-${index}-desc`}
-            value={cat.description}
-            onChange={(e) => onUpdate(index, { description: e.target.value })}
-            maxLength={500}
-            rows={2}
-            placeholder="Deskripsi untuk ditampilkan ke pengguna"
-          />
-        </div>
-        {cat.key === 'pterodactyl' && (
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <Label htmlFor={`cat-${index}-pterodactylPanelId`}>Panel Pterodactyl Tujuan (ID)</Label>
-            <Input
-              id={`cat-${index}-pterodactylPanelId`}
-              value={cat.pterodactylPanelId || ''}
-              onChange={(e) => onUpdate(index, { pterodactylPanelId: e.target.value })}
-              maxLength={60}
-              placeholder="ID panel di Pterodactyl (opsional)"
-            />
-            <p className="text-xs text-content-faint">Gunakan panel ini untuk provisioning server otomatis.</p>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-4 pt-4 border-t border-line/60">
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`cat-${index}-sort`}>Urutan</Label>
-          <Input
-            id={`cat-${index}-sort`}
-            type="number"
-            inputMode="numeric"
-            value={String(cat.sortOrder)}
-            onChange={(e) => onUpdate(index, { sortOrder: Number(e.target.value) || 0 })}
-            min={0}
-            max={9999}
-            className="w-24"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TierCard({ tier, index, categories, onUpdate, onRemove, expanded, onToggleExpand }: {
-  tier: PanelRamTier;
-  index: number;
-  categories: PanelCategory[];
-  onUpdate: (index: number, updated: Partial<PanelRamTier>) => void;
-  onRemove: (index: number) => void;
-  expanded: boolean;
-  onToggleExpand: (id: string) => void;
-}) {
-  const parentCategory = categories.find((c) => c.id === tier.categoryId);
-
-  return (
-    <div className="rounded-xl border border-line overflow-hidden">
-      <button
-        type="button"
-        onClick={() => onToggleExpand(tier.id)}
-        className="w-full flex items-center justify-between p-4 hover:bg-content/3 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <ArrowUpDown className="text-content-muted/50 h-5 w-5 cursor-grab" />
-          <div className="h-10 w-10 rounded-lg flex items-center justify-center border border-line bg-content/5">
-            <HardDrive className="text-accent" size={20} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-content">Tier #{index + 1}: {tier.name || 'Nama belum diisi'}</p>
-            <p className="text-xs text-content-faint">
-              Kategori: {parentCategory?.name ?? tier.categoryId} · ID: {tier.id}
-              · Rp{tier.price.toLocaleString('id-ID')}/{tier.durationDays} hari
-            </p>
+            <p className="text-sm font-medium text-content">Tier #{index + 1}</p>
+            <p className="text-xs text-content-faint">Key: <code>{tier.key}</code> · ID: <code>{tier.id}</code></p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -407,171 +461,319 @@ function TierCard({ tier, index, categories, onUpdate, onRemove, expanded, onTog
           <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)} className="text-red-500 hover:text-red-400">
             <Trash2 size={14} />
           </Button>
-          <span className="text-content-muted">{expanded ? <EyeOff size={18} /> : <Eye size={18} />}</span>
         </div>
-      </button>
+      </div>
 
-      {expanded && (
-        <div className="border-t border-line/40 p-4 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`tier-${index}-id`}>ID</Label>
-              <Input
-                id={`tier-${index}-id`}
-                value={tier.id}
-                onChange={(e) => onUpdate(index, { id: e.target.value })}
-                maxLength={60}
-                placeholder="tier-lite"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`tier-${index}-categoryId`}>Kategori</Label>
-              <select
-                id={`tier-${index}-categoryId`}
-                value={tier.categoryId}
-                onChange={(e) => onUpdate(index, { categoryId: e.target.value })}
-                className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-surface-raised text-content">
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`tier-${index}-name`}>Nama Tier</Label>
-              <Input
-                id={`tier-${index}-name`}
-                value={tier.name}
-                onChange={(e) => onUpdate(index, { name: e.target.value })}
-                maxLength={100}
-                placeholder="Lite, Standard, Elite"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`tier-${index}-price`}>Harga (Rp/bulan)</Label>
-              <Input
-                id={`tier-${index}-price`}
-                type="number"
-                inputMode="numeric"
-                value={String(tier.price)}
-                onChange={(e) => onUpdate(index, { price: Number(e.target.value) || 0 })}
-                min={0}
-                max={1000000000}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`tier-${index}-duration`}>Durasi (hari)</Label>
-              <Input
-                id={`tier-${index}-duration`}
-                type="number"
-                inputMode="numeric"
-                value={String(tier.durationDays)}
-                onChange={(e) => onUpdate(index, { durationDays: Number(e.target.value) || 30 })}
-                min={1}
-                max={3650}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`tier-${index}-maxPurchase`}>Maks Beli per User</Label>
-              <Input
-                id={`tier-${index}-maxPurchase`}
-                type="number"
-                inputMode="numeric"
-                value={String(tier.maxPurchasePerUser ?? 0)}
-                onChange={(e) => onUpdate(index, { maxPurchasePerUser: Number(e.target.value) || 0 })}
-                min={0}
-                max={100}
-              />
-              <p className="text-xs text-content-faint">0 = unlimited, 1 = sekali beli, 2 = max 2x, dst.</p>
-            </div>
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label htmlFor={`tier-${index}-desc`}>Deskripsi</Label>
-              <Textarea
-                id={`tier-${index}-desc`}
-                value={tier.description}
-                onChange={(e) => onUpdate(index, { description: e.target.value })}
-                maxLength={500}
-                rows={2}
-                placeholder="Deskripsi tier untuk ditampilkan ke pengguna"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-accent/30 bg-accent-soft/30 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-content">Spesifikasi Provisioning</p>
-                <p className="text-xs text-content-faint">Spesifikasi server yang akan dibuat di Pterodactyl.</p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <ProvisionInput label="RAM (MB)" id={`tier-${index}-memory`} value={tier.provision.memoryMb} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, memoryMb: v } })} min={16} max={1048576} />
-              <ProvisionInput label="Swap (MB)" id={`tier-${index}-swap`} value={tier.provision.swapMb} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, swapMb: v } })} min={0} max={1048576} />
-              <ProvisionInput label="Disk (MB)" id={`tier-${index}-disk`} value={tier.provision.diskMb} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, diskMb: v } })} min={16} max={1048576} />
-              <ProvisionInput label="CPU (%)" id={`tier-${index}-cpu`} value={tier.provision.cpuPercent} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, cpuPercent: v } })} min={0} max={100000} />
-              <ProvisionInput label="IO Weight" id={`tier-${index}-io`} value={tier.provision.ioWeight} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, ioWeight: v } })} min={10} max={1000} />
-              <ProvisionInput label="Databases" id={`tier-${index}-databases`} value={tier.provision.databases} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, databases: v } })} min={0} max={100} />
-              <ProvisionInput label="Allocations" id={`tier-${index}-allocations`} value={tier.provision.allocations} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, allocations: v } })} min={0} max={100} />
-              <ProvisionInput label="Backups" id={`tier-${index}-backups`} value={tier.provision.backups} onChange={(v) => onUpdate(index, { provision: { ...tier.provision, backups: v } })} min={0} max={100} />
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <Label htmlFor={`tier-${index}-allocMode`}>Mode Alokasi</Label>
-                <select
-                  id={`tier-${index}-allocMode`}
-                  value={tier.provision.allocationMode}
-                  onChange={(e) => onUpdate(index, { provision: { ...tier.provision, allocationMode: e.target.value as 'auto' | 'default' } })}
-                  className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
-                >
-                  <option value="auto" className="bg-surface-raised text-content">Auto</option>
-                  <option value="default" className="bg-surface-raised text-content">Default</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 pt-4 border-t border-line/60">
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`tier-${index}-sort`}>Urutan</Label>
-              <Input
-                id={`tier-${index}-sort`}
-                type="number"
-                inputMode="numeric"
-                value={String(tier.sortOrder)}
-                onChange={(e) => onUpdate(index, { sortOrder: Number(e.target.value) || 0 })}
-                min={0}
-                max={9999}
-                className="w-24"
-              />
-            </div>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`tier-${index}-id`}>ID</Label>
+          <Input
+            id={`tier-${index}-id`}
+            value={tier.id}
+            onChange={(e) => onUpdate(index, { id: e.target.value })}
+            maxLength={60}
+            placeholder="tier-panel-1"
+          />
         </div>
-      )}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`tier-${index}-key`}>Key (Unik, untuk routing)</Label>
+          <Input
+            id={`tier-${index}-key`}
+            value={tier.key}
+            onChange={(e) => onUpdate(index, { key: e.target.value })}
+            maxLength={60}
+            placeholder="panel-1"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`tier-${index}-name`}>Nama Tier</Label>
+          <Input
+            id={`tier-${index}-name`}
+            value={tier.name}
+            onChange={(e) => onUpdate(index, { name: e.target.value })}
+            maxLength={100}
+            placeholder="Panel Indonesia 1"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`tier-${index}-icon`}>Icon (Lucide)</Label>
+          <Input
+            id={`tier-${index}-icon`}
+            value={tier.icon}
+            onChange={(e) => onUpdate(index, { icon: e.target.value })}
+            maxLength={50}
+            placeholder="Server"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor={`tier-${index}-desc`}>Deskripsi</Label>
+          <Textarea
+            id={`tier-${index}-desc`}
+            value={tier.description}
+            onChange={(e) => onUpdate(index, { description: e.target.value })}
+            maxLength={500}
+            rows={2}
+            placeholder="Deskripsi untuk ditampilkan ke pengguna"
+          />
+        </div>
+        
+        {/* Pterodactyl Config */}
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor={`tier-${index}-pterodactyl-panelId`}>Panel ID Pterodactyl</Label>
+          <Input
+            id={`tier-${index}-pterodactyl-panelId`}
+            value={tier.pterodactyl?.panelId || ''}
+            onChange={(e) => onUpdate(index, { pterodactyl: { ...tier.pterodactyl, panelId: e.target.value } })}
+            maxLength={60}
+            placeholder="ID panel di Pterodactyl (opsional)"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor={`tier-${index}-pterodactyl-baseUrl`}>Base URL Pterodactyl *</Label>
+          <Input
+            id={`tier-${index}-pterodactyl-baseUrl`}
+            value={tier.pterodactyl?.baseUrl || ''}
+            onChange={(e) => onUpdate(index, { pterodactyl: { ...tier.pterodactyl, baseUrl: e.target.value } })}
+            maxLength={200}
+            placeholder="https://panel.example.com"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor={`tier-${index}-pterodactyl-apiKey`}>API Key Pterodactyl *</Label>
+          <Input
+            id={`tier-${index}-pterodactyl-apiKey`}
+            type="password"
+            value={tier.pterodactyl?.apiKey || ''}
+            onChange={(e) => onUpdate(index, { pterodactyl: { ...tier.pterodactyl, apiKey: e.target.value } })}
+            maxLength={200}
+            placeholder="ptla_xxxxxxxxxxxxxxxxxxxxxxxx"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-4 pt-4 border-t border-line/60">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`tier-${index}-sort`}>Urutan</Label>
+          <Input
+            id={`tier-${index}-sort`}
+            type="number"
+            inputMode="numeric"
+            value={String(tier.sortOrder)}
+            onChange={(e) => onUpdate(index, { sortOrder: Number(e.target.value) || 0 })}
+            min={0}
+            max={9999}
+            className="w-24"
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
-function ProvisionInput({ label, id, value, onChange, min, max }: {
-  label: string;
-  id: string;
-  value: number;
-  onChange: (v: number) => void;
-  min: number;
-  max: number;
+function RamOptionCard({ ram, index, onUpdate, onRemove }: {
+  ram: PanelRamOption;
+  index: number;
+  onUpdate: (index: number, updated: Partial<PanelRamOption>) => void;
+  onRemove: (index: number) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        value={String(value)}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
-        min={min}
-        max={max}
-      />
+    <div className="rounded-xl border border-line p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <GripVertical className="text-content-muted/50 h-5 w-5 cursor-grab" />
+          <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+            <MemoryStick className="text-accent" size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-content">RAM #{index + 1}</p>
+            <p className="text-xs text-content-faint">ID: {ram.id} · {ram.memoryMb === 0 ? 'Custom' : `${ram.memoryMb / 1024}GB`}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={ram.active}
+            onCheckedChange={(checked) => onUpdate(index, { active: checked })}
+          />
+          <span className="text-xs text-content-muted">{ram.active ? 'Aktif' : 'Nonaktif'}</span>
+          {ram.isCustom && <span className="text-xs text-amber-500 px-1.5 py-0.5 rounded bg-amber-500/10">Custom</span>}
+          <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)} className="text-red-500 hover:text-red-400">
+            <Trash2 size={14} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-id`}>ID</Label>
+          <Input id={`ram-${index}-id`} value={ram.id} onChange={(e) => onUpdate(index, { id: e.target.value })} maxLength={60} placeholder="ram-1gb-1" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-name`}>Nama</Label>
+          <Input id={`ram-${index}-name`} value={ram.name} onChange={(e) => onUpdate(index, { name: e.target.value })} maxLength={100} placeholder="1GB, 2GB, Custom" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-memory`}>RAM (MB)</Label>
+          <Input id={`ram-${index}-memory`} type="number" inputMode="numeric" value={String(ram.memoryMb)} onChange={(e) => onUpdate(index, { memoryMb: Number(e.target.value) || 0 })} min={0} max={10485760} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-customMax`}>Max Custom (MB)</Label>
+          <Input id={`ram-${index}-customMax`} type="number" inputMode="numeric" value={String(ram.customMaxMb || 10240)} onChange={(e) => onUpdate(index, { customMaxMb: Number(e.target.value) || 10240 })} min={1024} max={10485760} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-price`}>Harga (Rp/bulan)</Label>
+          <Input id={`ram-${index}-price`} type="number" inputMode="numeric" value={String(ram.price)} onChange={(e) => onUpdate(index, { price: Number(e.target.value) || 0 })} min={0} max={1000000000} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-duration`}>Durasi (hari)</Label>
+          <Input id={`ram-${index}-duration`} type="number" inputMode="numeric" value={String(ram.durationDays)} onChange={(e) => onUpdate(index, { durationDays: Number(e.target.value) || 30 })} min={1} max={3650} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-custom`}>Opsi Custom?</Label>
+          <div className="flex items-center gap-2">
+            <Input type="checkbox" id={`ram-${index}-custom-check`} checked={ram.isCustom} onChange={(e) => onUpdate(index, { isCustom: e.target.checked })} className="h-4 w-4" />
+            <Label htmlFor={`ram-${index}-custom-check`} className="cursor-pointer">Ya, ini opsi custom (user input manual RAM)</Label>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`ram-${index}-maxPurchase`}>Maks Beli per User</Label>
+          <Input id={`ram-${index}-maxPurchase`} type="number" inputMode="numeric" value={String(ram.maxPurchasePerUser)} onChange={(e) => onUpdate(index, { maxPurchasePerUser: Number(e.target.value) || 0 })} min={0} max={100} />
+          <p className="text-xs text-content-faint">0 = unlimited</p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-4 pt-3 border-t border-line/60">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`ram-${index}-sort`}>Urutan</Label>
+          <Input id={`ram-${index}-sort`} type="number" inputMode="numeric" value={String(ram.sortOrder)} onChange={(e) => onUpdate(index, { sortOrder: Number(e.target.value) || 0 })} min={0} max={9999} className="w-24" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CpuOptionCard({ cpu, index, onUpdate, onRemove }: {
+  cpu: PanelCpuOption;
+  index: number;
+  onUpdate: (index: number, updated: Partial<PanelCpuOption>) => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <GripVertical className="text-content-muted/50 h-5 w-5 cursor-grab" />
+          <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+            <CpuIcon className="text-accent" size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-content">CPU #{index + 1}</p>
+            <p className="text-xs text-content-faint">ID: {cpu.id} · {cpu.cpuPercent === 0 ? 'Unlimited' : `${cpu.cpuPercent}%`}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={cpu.active} onCheckedChange={(checked) => onUpdate(index, { active: checked })} />
+          <span className="text-xs text-content-muted">{cpu.active ? 'Aktif' : 'Nonaktif'}</span>
+          <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)} className="text-red-500 hover:text-red-400">
+            <Trash2 size={14} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`cpu-${index}-id`}>ID</Label>
+          <Input id={`cpu-${index}-id`} value={cpu.id} onChange={(e) => onUpdate(index, { id: e.target.value })} maxLength={60} placeholder="cpu-500-1" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`cpu-${index}-name`}>Nama</Label>
+          <Input id={`cpu-${index}-name`} value={cpu.name} onChange={(e) => onUpdate(index, { name: e.target.value })} maxLength={100} placeholder="500%, Unlimited" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`cpu-${index}-cpuPercent`}>CPU (%)</Label>
+          <Input id={`cpu-${index}-cpuPercent`} type="number" inputMode="numeric" value={String(cpu.cpuPercent)} onChange={(e) => onUpdate(index, { cpuPercent: Number(e.target.value) || 0 })} min={0} max={100000} />
+          <p className="text-xs text-content-faint">0 = Unlimited</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`cpu-${index}-priceModifier`}>Tambahan Harga (Rp/bulan)</Label>
+          <Input id={`cpu-${index}-priceModifier`} type="number" inputMode="numeric" value={String(cpu.priceModifier)} onChange={(e) => onUpdate(index, { priceModifier: Number(e.target.value) || 0 })} min={0} max={1000000000} />
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-4 pt-3 border-t border-line/60">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`cpu-${index}-sort`}>Urutan</Label>
+          <Input id={`cpu-${index}-sort`} type="number" inputMode="numeric" value={String(cpu.sortOrder)} onChange={(e) => onUpdate(index, { sortOrder: Number(e.target.value) || 0 })} min={0} max={9999} className="w-24" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiskOptionCard({ disk, index, onUpdate, onRemove }: {
+  disk: PanelDiskOption;
+  index: number;
+  onUpdate: (index: number, updated: Partial<PanelDiskOption>) => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <GripVertical className="text-content-muted/50 h-5 w-5 cursor-grab" />
+          <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+            <DiskIcon className="text-accent" size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-content">Disk #{index + 1}</p>
+            <p className="text-xs text-content-faint">ID: {disk.id} · {disk.diskMb === 0 ? 'Custom' : `${disk.diskMb / 1024}GB`}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={disk.active} onCheckedChange={(checked) => onUpdate(index, { active: checked })} />
+          <span className="text-xs text-content-muted">{disk.active ? 'Aktif' : 'Nonaktif'}</span>
+          {disk.isCustom && <span className="text-xs text-amber-500 px-1.5 py-0.5 rounded bg-amber-500/10">Custom</span>}
+          <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)} className="text-red-500 hover:text-red-400">
+            <Trash2 size={14} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`disk-${index}-id`}>ID</Label>
+          <Input id={`disk-${index}-id`} value={disk.id} onChange={(e) => onUpdate(index, { id: e.target.value })} maxLength={60} placeholder="disk-10gb-1" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`disk-${index}-name`}>Nama</Label>
+          <Input id={`disk-${index}-name`} value={disk.name} onChange={(e) => onUpdate(index, { name: e.target.value })} maxLength={100} placeholder="10GB, 20GB, Custom" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`disk-${index}-disk`}>Disk (MB)</Label>
+          <Input id={`disk-${index}-disk`} type="number" inputMode="numeric" value={String(disk.diskMb)} onChange={(e) => onUpdate(index, { diskMb: Number(e.target.value) || 0 })} min={0} max={104857600} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`disk-${index}-customMax`}>Max Custom (MB)</Label>
+          <Input id={`disk-${index}-customMax`} type="number" inputMode="numeric" value={String(disk.customMaxMb || 102400)} onChange={(e) => onUpdate(index, { customMaxMb: Number(e.target.value) || 102400 })} min={1024} max={104857600} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`disk-${index}-priceModifier`}>Tambahan Harga (Rp/bulan)</Label>
+          <Input id={`disk-${index}-priceModifier`} type="number" inputMode="numeric" value={String(disk.priceModifier)} onChange={(e) => onUpdate(index, { priceModifier: Number(e.target.value) || 0 })} min={0} max={1000000000} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`disk-${index}-custom`}>Opsi Custom?</Label>
+          <div className="flex items-center gap-2">
+            <Input type="checkbox" id={`disk-${index}-custom-check`} checked={disk.isCustom} onChange={(e) => onUpdate(index, { isCustom: e.target.checked })} className="h-4 w-4" />
+            <Label htmlFor={`disk-${index}-custom-check`} className="cursor-pointer">Ya, ini opsi custom (user input manual Disk)</Label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-4 pt-3 border-t border-line/60">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`disk-${index}-sort`}>Urutan</Label>
+          <Input id={`disk-${index}-sort`} type="number" inputMode="numeric" value={String(disk.sortOrder)} onChange={(e) => onUpdate(index, { sortOrder: Number(e.target.value) || 0 })} min={0} max={9999} className="w-24" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -228,31 +228,33 @@ export function HomeContent() {
     void loadCatalog();
   }, []);
 
-  // Combine regular categories with panel categories from settings
+  // Combine regular categories with panel tiers from settings
   const allCategories = useMemo(() => {
     if (!settings) return { regular: categories, panel: [] as any[] };
     
-    const panelCats = settings.panelCategories?.filter((c) => c.active) ?? [];
-    const panelTiers = settings.panelRamTiers?.filter((t) => t.active) ?? [];
+    const panelTiers = settings.panelTiers?.filter((t) => t.active) ?? [];
+    const panelRamOptions = settings.panelRamOptions?.filter((r) => r.active) ?? [];
     
-    // Create virtual categories for panel tiers (grouped by panel category)
-    const panelCategoryMap = new Map<string, { 
+    // Create virtual categories for panel tiers (grouped by tier)
+    type PanelCategoryInfo = {
       category: { id: string; name: string; description: string; icon: string; key: string };
-      tiers: typeof panelTiers;
-    }>();
+      tiers: typeof panelRamOptions;
+    };
     
-    for (const panelCat of panelCats) {
-      const tiers = panelTiers.filter((t) => t.categoryId === panelCat.id);
-      if (tiers.length > 0) {
-        panelCategoryMap.set(panelCat.id, {
+    const panelCategoryMap = new Map<string, PanelCategoryInfo>();
+    
+    for (const panelTier of panelTiers) {
+      const ramOpts = panelRamOptions.filter((r) => r.tierId === panelTier.id);
+      if (ramOpts.length > 0) {
+        panelCategoryMap.set(panelTier.id, {
           category: {
-            id: panelCat.id,
-            name: panelCat.name,
-            description: panelCat.description,
-            icon: panelCat.icon,
-            key: panelCat.key,
+            id: panelTier.id,
+            name: panelTier.name,
+            description: panelTier.description,
+            icon: panelTier.icon,
+            key: panelTier.key,
           },
-          tiers,
+          tiers: ramOpts,
         });
       }
     }
@@ -573,7 +575,7 @@ export function HomeContent() {
                             className="h-full"
                           >
                             <Link
-                              href={`/panel-beli/${panelCat.category.key}`}
+                              href={`/panel-beli/${panelCat.category.key}` as any}
                               className="block h-full"
                             >
                               <article className="group relative h-full flex flex-col overflow-hidden rounded-3xl border border-line/60 bg-content/5 hover:border-accent/50 hover:bg-content/10 transition-all duration-300">
