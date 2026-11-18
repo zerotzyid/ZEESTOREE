@@ -7,6 +7,34 @@
 
 export type FaqItem = { id: string; q: string; a: string };
 
+export type PanelType = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  durationDays: number;
+  category: 'pterodactyl' | 'custom';
+  provision: {
+    panelId: string;
+    eggId: number;
+    memoryMb: number;
+    swapMb: number;
+    diskMb: number;
+    cpuPercent: number;
+    ioWeight: number;
+    dockerImage: string | null;
+    startup: string | null;
+    environment: Record<string, string>;
+    allocationMode: 'auto' | 'default';
+    allocationId: number | null;
+    databases: number;
+    allocations: number;
+    backups: number;
+  } | null;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type Settings = {
   identity: {
     storeName: string;
@@ -73,6 +101,7 @@ export type Settings = {
   limits: {
     maxProductsPerUser: number;
   };
+  panelTypes: PanelType[];
   oauth: {
     enabled: boolean;
     providers: Record<string, { enabled: boolean; clientId: string; clientSecret: string; name: string; icon?: string }>;
@@ -173,6 +202,89 @@ export const DEFAULT_SETTINGS: Settings = {
   limits: {
     maxProductsPerUser: 5,
   },
+  panelTypes: [
+    {
+      id: 'panel-elite',
+      name: 'Panel Elite',
+      description: 'Panel premium dengan spesifikasi tinggi untuk server game berat',
+      price: 150000,
+      durationDays: 30,
+      category: 'pterodactyl',
+      provision: {
+        panelId: '',
+        eggId: 1,
+        memoryMb: 4096,
+        swapMb: 512,
+        diskMb: 10240,
+        cpuPercent: 200,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto',
+        allocationId: null,
+        databases: 5,
+        allocations: 5,
+        backups: 3,
+      },
+      active: true,
+      sortOrder: 1,
+    },
+    {
+      id: 'panel-standard',
+      name: 'Panel Standar',
+      description: 'Panel standar untuk server game ringan hingga menengah',
+      price: 75000,
+      durationDays: 30,
+      category: 'pterodactyl',
+      provision: {
+        panelId: '',
+        eggId: 1,
+        memoryMb: 2048,
+        swapMb: 256,
+        diskMb: 5120,
+        cpuPercent: 100,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto',
+        allocationId: null,
+        databases: 3,
+        allocations: 3,
+        backups: 2,
+      },
+      active: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'panel-lite',
+      name: 'Panel Lite',
+      description: 'Panel hemat untuk server game ringan / development',
+      price: 35000,
+      durationDays: 30,
+      category: 'pterodactyl',
+      provision: {
+        panelId: '',
+        eggId: 1,
+        memoryMb: 1024,
+        swapMb: 128,
+        diskMb: 2048,
+        cpuPercent: 50,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto',
+        allocationId: null,
+        databases: 1,
+        allocations: 1,
+        backups: 1,
+      },
+      active: true,
+      sortOrder: 3,
+    },
+  ],
   oauth: {
     enabled: false,
     providers: {

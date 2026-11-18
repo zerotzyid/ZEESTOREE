@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Save, Mail, Github, LockKeyhole } from 'lucide-react';
+import { Loader2, Save, Mail, Github, LockKeyhole, Plus, Trash2, Server, ShieldCheck, Trash2 as Trash2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/components/settings-provider';
 import { AssetField } from '@/components/admin/asset-field';
@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { computeAccentVars } from '@/lib/accent';
-import type { Settings } from '@/lib/settings-defaults';
+import type { Settings, PanelType } from '@/lib/settings-defaults';
 
 type SectionKey = keyof Settings;
 
@@ -152,6 +152,25 @@ export function SettingsClient({ initial }: Props) {
     initial ? structuredClone(initial) : null
   );
   const [saving, setSaving] = useState<SectionKey | null>(null);
+  const [nests, setNests] = useState<Array<{ nestId: number; nestName: string; eggs: Array<{ id: number; name: string }> }>>([]);
+  const [nestsLoading, setNestsLoading] = useState(false);
+  const [nestsError, setNestsError] = useState<string | null>(null);
+  const [panels, setPanels] = useState<Array<{ id: string; name: string; active: boolean }>>([]);
+
+  useEffect(() => {
+    const fetchPanels = async () => {
+      try {
+        const res = await fetch('/api/admin/panels', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.panels) setPanels(data.panels);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    fetchPanels();
+  }, []);
 
   useEffect(() => {
     if (!draft && settings) setDraft(structuredClone(settings));
@@ -215,6 +234,58 @@ export function SettingsClient({ initial }: Props) {
     }
   };
 
+  // Panel Types Management
+  const addPanelType = () => {
+    const newPanelType = {
+      id: `panel-${Date.now()}`,
+      name: '',
+      description: '',
+      price: 0,
+      durationDays: 30,
+      category: 'pterodactyl' as const,
+      provision: null,
+      active: true,
+      sortOrder: (draft.panelTypes?.length ?? 0) + 1,
+    };
+    setDraft((prev) => (prev ? { ...prev, panelTypes: [...(prev.panelTypes ?? []), newPanelType] } : prev));
+  };
+
+  const removePanelType = (index: number) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newPanelTypes = [...(prev.panelTypes ?? [])];
+      newPanelTypes.splice(index, 1);
+      return { ...prev, panelTypes: newPanelTypes };
+    });
+  };
+
+  const updatePanelType = (index: number, updatedPanelType: Partial<PanelType>) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newPanelTypes = [...(prev.panelTypes ?? [])];
+      newPanelTypes[index] = { ...newPanelTypes[index], ...updatedPanelType };
+      return { ...prev, panelTypes: newPanelTypes };
+    });
+  };
+
+  const loadNests = async (panelId: string) => {
+    if (!panelId) return;
+    setNestsLoading(true);
+    setNestsError(null);
+    try {
+      const res = await fetch(`/api/admin/panels/${panelId}/eggs`, { cache: 'no-store' });
+      const data = (await res.json().catch(() => null)) as { nests?: Array<{ nestId: number; nestName: string; eggs: Array<{ id: number; name: string }> }>; error?: string } | null;
+      if (!res.ok || !data?.nests) {
+        setNestsError(data?.error ?? 'Gagal memuat nest/egg. Isi Egg ID manual bila panel v2.');
+        setNests([]);
+        return;
+      }
+      setNests(data.nests);
+    } finally {
+      setNestsLoading(false);
+    }
+  };
+
   const accentVars = computeAccentVars(draft.appearance.accent);
 
   return (
@@ -241,6 +312,7 @@ export function SettingsClient({ initial }: Props) {
           <TabsTrigger value="oauth">OAuth Login</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="limits">Batas Produk</TabsTrigger>
+          <TabsTrigger value="panelTypes">Jenis Panel</TabsTrigger>
         </TabsList>
 
         {/* IDENTITAS */}
@@ -1066,6 +1138,410 @@ export function SettingsClient({ initial }: Props) {
             </div>
             <div className="pt-4 border-t border-line/60 flex justify-end">
               <SaveButton section="limits" saving={saving} onClick={(s) => void save(s)} />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* PANEL TYPES */}
+        <TabsContent value="panelTypes">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="label-mono">Jenis Panel</p>
+                <p className="text-xs text-content-faint">
+                  Konfigurasi jenis panel yang bisa dibeli pengguna. Setiap jenis memiliki spesifikasi provisioning sendiri.
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => addPanelType()}>
+                <Plus aria-hidden size={14} />
+                Tambah Jenis Panel
+              </Button>
+            </div>
+
+            {draft.panelTypes?.map((panelType, index) => (
+              <div key={panelType.id} className="rounded-2xl border border-line p-4">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+                      <Server aria-hidden size={16} className="text-accent" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-content">Jenis Panel #{index + 1}</p>
+                      <p className="text-xs text-content-faint">ID: {panelType.id}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={panelType.active}
+                      onCheckedChange={(checked) => updatePanelType(index, { ...panelType, active: checked })}
+                    />
+                    <span className="text-xs text-content-muted">
+                      {panelType.active ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePanelType(index)}
+                      className="text-red-500 hover:text-red-400"
+                    >
+                      <Trash2 aria-hidden size={14} />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={`panel-${index}-id`}>ID</Label>
+                    <Input
+                      id={`panel-${index}-id`}
+                      value={panelType.id}
+                      onChange={(e) => updatePanelType(index, { ...panelType, id: e.target.value })}
+                      maxLength={60}
+                      placeholder="Contoh: panel-elite"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={`panel-${index}-name`}>Nama</Label>
+                    <Input
+                      id={`panel-${index}-name`}
+                      value={panelType.name}
+                      onChange={(e) => updatePanelType(index, { ...panelType, name: e.target.value })}
+                      maxLength={100}
+                      placeholder="Contoh: Panel Elite"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`panel-${index}-desc`}>Deskripsi</Label>
+                  <Textarea
+                    id={`panel-${index}-desc`}
+                    value={panelType.description}
+                    onChange={(e) => updatePanelType(index, { ...panelType, description: e.target.value })}
+                    maxLength={500}
+                    rows={2}
+                    placeholder="Deskripsi singkat untuk ditampilkan ke pengguna"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={`panel-${index}-price`}>Harga (Rp)</Label>
+                    <Input
+                      id={`panel-${index}-price`}
+                      type="number"
+                      inputMode="numeric"
+                      value={String(panelType.price)}
+                      onChange={(e) => updatePanelType(index, { ...panelType, price: Number(e.target.value) || 0 })}
+                      min={0}
+                      max={1000000000}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={`panel-${index}-duration`}>Durasi (hari)</Label>
+                    <Input
+                      id={`panel-${index}-duration`}
+                      type="number"
+                      inputMode="numeric"
+                      value={String(panelType.durationDays)}
+                      onChange={(e) => updatePanelType(index, { ...panelType, durationDays: Number(e.target.value) || 30 })}
+                      min={1}
+                      max={3650}
+                    />
+                  </div>
+                </div>
+
+                {panelType.provision ? (
+                  <div className="flex flex-col gap-3 rounded-xl border border-accent/30 bg-accent-soft/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-content">Provisioning Panel Otomatis</p>
+                        <p className="text-xs text-content-faint">
+                          Server dibuat otomatis di Pterodactyl saat pelanggan checkout.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`panel-${index}-panelId`}>Panel Tujuan (ID Panel Pterodactyl)</Label>
+                        <select
+                          id={`panel-${index}-panelId`}
+                          value={panelType.provision.panelId}
+                          onChange={(e) => updatePanelType(index, { ...panelType, provision: { ...panelType.provision!, panelId: e.target.value } })}
+                          className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
+                        >
+                          <option value="" className="bg-surface-raised text-content">— pilih panel —</option>
+                          {panels.filter((p) => p.active).map((p) => (
+                            <option key={p.id} value={p.id} className="bg-surface-raised text-content">
+                              {p.name} (ID: {p.id})
+                            </option>
+                          ))}
+                        </select>
+                        {panels.filter((p) => p.active).length === 0 ? (
+                          <p className="text-xs text-amber-400">
+                            Belum ada panel aktif — tambahkan dulu di menu Panel.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`panel-${index}-eggId`}>Egg</Label>
+                        <div className="flex gap-2">
+                          <select
+                            id={`panel-${index}-eggId`}
+                            value={String(panelType.provision?.eggId ?? '')}
+                            onChange={(e) => updatePanelType(index, { ...panelType, provision: { ...panelType.provision!, eggId: Number(e.target.value) || 1 } })}
+                            disabled={nestsLoading}
+                            className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none disabled:opacity-60"
+                          >
+                            <option value="" className="bg-surface-raised text-content">
+                              {nestsLoading ? 'Memuat egg…' : nests.length > 0 ? '— pilih egg —' : 'Isi Egg ID manual'}
+                            </option>
+                            {nests.map((nest) => (
+                              <optgroup
+                                key={nest.nestId}
+                                label={nest.nestName}
+                                className="bg-surface-raised"
+                              >
+                                {nest.eggs.map((egg) => (
+                                  <option key={egg.id} value={String(egg.id)} className="bg-surface-raised text-content">
+                                    {egg.name} (#{egg.id})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!panelType.provision?.panelId || nestsLoading}
+                            onClick={() => void loadNests(panelType.provision?.panelId ?? '')}
+                            className="shrink-0"
+                          >
+                            {nestsLoading ? (
+                              <Loader2 aria-hidden size={14} className="animate-spin" />
+                            ) : (
+                              'Muat'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`panel-${index}-alloc-mode`}>Alokasi IP/Port</Label>
+                        <select
+                          id={`panel-${index}-alloc-mode`}
+                          value={panelType.provision.allocationMode}
+                          onChange={(e) =>
+                            updatePanelType(index, {
+                              ...panelType,
+                              provision: {
+                                ...panelType.provision!,
+                                allocationMode: e.target.value as 'auto' | 'default',
+                              },
+                            })}
+                          className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
+                        >
+                          <option value="auto" className="bg-surface-raised text-content">
+                            Auto (cari alokasi tersedia)
+                          </option>
+                          <option value="default" className="bg-surface-raised text-content">
+                            Alokasi tetap (isi ID)
+                          </option>
+                        </select>
+                        {panelType.provision.allocationMode === 'default' ? (
+                          <Input
+                            value={panelType.provision.allocationId?.toString() ?? ''}
+                            onChange={(e) =>
+                              updatePanelType(index, {
+                                ...panelType,
+                                provision: { ...panelType.provision!, allocationId: e.target.value ? Number(e.target.value) : null },
+                              })}
+                            inputMode="numeric"
+                            placeholder="Allocation ID"
+                            aria-label="Allocation ID"
+                          />
+                        ) : null}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          ['memoryMb', 'RAM (MB)'],
+                          ['diskMb', 'Disk (MB)'],
+                          ['swapMb', 'Swap (MB)'],
+                        ] as const).map(([key, label]) => (
+                          <div key={key} className="flex flex-col gap-1.5">
+                            <Label htmlFor={`panel-${index}-${key}`}>{label}</Label>
+                            <Input
+                              id={`panel-${index}-${key}`}
+                              value={String(panelType.provision?.[key] ?? 0)}
+                              onChange={(e) =>
+                                updatePanelType(index, {
+                                  ...panelType,
+                                  provision: { ...panelType.provision!, [key]: Number(e.target.value) || 0 },
+                                })}
+                              inputMode="numeric"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`panel-${index}-cpu`}>CPU (%)</Label>
+                          <Input
+                            id={`panel-${index}-cpu`}
+                            value={String(panelType.provision.cpuPercent)}
+                            onChange={(e) =>
+                              updatePanelType(index, {
+                                ...panelType,
+                                provision: { ...panelType.provision!, cpuPercent: Number(e.target.value) || 0 },
+                              })}
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`panel-${index}-io`}>IO</Label>
+                          <Input
+                            id={`panel-${index}-io`}
+                            value={String(panelType.provision.ioWeight)}
+                            onChange={(e) =>
+                              updatePanelType(index, {
+                                ...panelType,
+                                provision: { ...panelType.provision!, ioWeight: Number(e.target.value) || 0 },
+                              })}
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`panel-${index}-db`}>Database</Label>
+                          <Input
+                            id={`panel-${index}-db`}
+                            value={String(panelType.provision.databases)}
+                            onChange={(e) =>
+                              updatePanelType(index, {
+                                ...panelType,
+                                provision: { ...panelType.provision!, databases: Number(e.target.value) || 0 },
+                              })}
+                            inputMode="numeric"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`panel-${index}-alloc`}>Alokasi maks</Label>
+                          <Input
+                            id={`panel-${index}-alloc`}
+                            value={String(panelType.provision.allocations)}
+                            onChange={(e) =>
+                              updatePanelType(index, {
+                                ...panelType,
+                                provision: { ...panelType.provision!, allocations: Number(e.target.value) || 1 },
+                              })}
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`panel-${index}-backup`}>Backup maks</Label>
+                          <Input
+                            id={`panel-${index}-backup`}
+                            value={String(panelType.provision.backups)}
+                            onChange={(e) =>
+                              updatePanelType(index, {
+                                ...panelType,
+                                provision: { ...panelType.provision!, backups: Number(e.target.value) || 0 },
+                              })}
+                            inputMode="numeric"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`panel-${index}-docker`}>Docker image (opsional)</Label>
+                        <Input
+                          id={`panel-${index}-docker`}
+                          value={panelType.provision?.dockerImage ?? ''}
+                          onChange={(e) =>
+                            updatePanelType(index, {
+                              ...panelType,
+                              provision: { ...panelType.provision!, dockerImage: e.target.value || null },
+                            })}
+                          placeholder="biarkan kosong untuk default egg"
+                          maxLength={200}
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`panel-${index}-startup`}>Startup command (opsional)</Label>
+                        <Input
+                          id={`panel-${index}-startup`}
+                          value={panelType.provision?.startup ?? ''}
+                          onChange={(e) =>
+                            updatePanelType(index, {
+                              ...panelType,
+                              provision: { ...panelType.provision!, startup: e.target.value || null },
+                            })}
+                          placeholder="biarkan kosong untuk default egg"
+                          maxLength={500}
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <Label htmlFor={`panel-${index}-env`}>Environment variables (JSON)</Label>
+                        <Textarea
+                          id={`panel-${index}-env`}
+                          value={JSON.stringify(panelType.provision?.environment ?? {}, null, 2)}
+                          onChange={(e) =>
+                            updatePanelType(index, {
+                              ...panelType,
+                              provision: { ...panelType.provision!, environment: JSON.parse(e.target.value || '{}') },
+                            })}
+                          rows={3}
+                          placeholder='{"KEY":"value"}'
+                          className="font-mono text-xs"
+                        />
+                        <p className="text-xs text-content-faint">
+                          Wajib diisi bila egg meminta variabel (cek halaman egg di panel).
+                          Env var wajib egg lain ikut terisi otomatis saat checkout.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-sm text-content-muted">
+                      Belum ada konfigurasi provisioning untuk jenis panel ini.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updatePanelType(index, { ...panelType, provision: { panelId: '', eggId: 1, memoryMb: 1024, swapMb: 0, diskMb: 2048, cpuPercent: 100, ioWeight: 500, dockerImage: null, startup: null, environment: {}, allocationMode: 'auto', allocationId: null, databases: 0, allocations: 1, backups: 0 } })}
+                    >
+                      Tambah Konfigurasi Provisioning
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {draft.panelTypes?.length === 0 && (
+              <div className="rounded-xl border border-line bg-content/5 p-6 text-center">
+                <p className="text-sm text-content-muted">
+                  Belum ada jenis panel yang dikonfigurasi.
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => addPanelType()} className="mt-2">
+                  <Plus aria-hidden size={14} />
+                  Tambah Jenis Panel
+                </Button>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-line/60 flex justify-end">
+              <SaveButton section="panelTypes" saving={saving} onClick={(s) => void save(s)} />
             </div>
           </div>
         </TabsContent>

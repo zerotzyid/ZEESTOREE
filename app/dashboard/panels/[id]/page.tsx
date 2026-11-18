@@ -376,7 +376,7 @@ export default function PanelServerPage({ params }: { params: Promise<{ id: stri
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Zap aria-hidden size={16} className="text-yellow-400" />
-                  Power Controls
+                  Quick Actions
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
@@ -397,6 +397,22 @@ export default function PanelServerPage({ params }: { params: Promise<{ id: stri
                     <CalendarPlus size={13} /> Perpanjang
                   </Button>
                 </div>
+                {order.panelUrl && (
+                  <div className="mt-3 pt-3 border-t border-line/40">
+                    <a
+                      href={order.panelUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-accent inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
+                    >
+                      <ExternalLink aria-hidden size={14} />
+                      Buka Panel Pterodactyl
+                    </a>
+                    <p className="mt-2 text-xs text-content-faint text-center sm:text-left">
+                      Akses langsung ke panel tanpa login ulang. Kredensial tersedia di bagian Informasi Server.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -417,6 +433,19 @@ export default function PanelServerPage({ params }: { params: Promise<{ id: stri
                   <InfoRow label="UUID" value={order.panelServerUuid ? order.panelServerUuid : '—'} />
                   <InfoRow label="Dibuat" value={order.createdAt ? fmtDate(order.createdAt) : '—'} />
                   <InfoRow label="Uptime" value={st?.uptimeMs ? fmtUptime(st.uptimeMs) : '—'} />
+                  {order.panelUrl && (
+                    <div className="pt-2 border-t border-line/40">
+                      <a
+                        href={order.panelUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-accent inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
+                      >
+                        <ExternalLink aria-hidden size={14} />
+                        Buka Panel Pterodactyl
+                      </a>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

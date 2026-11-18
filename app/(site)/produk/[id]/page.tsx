@@ -8,7 +8,7 @@ import { getSession } from '@/lib/session';
 import { formatRupiah } from '@/lib/format';
 import { ProductImage } from '@/components/product-image';
 import { CheckoutButton } from '@/components/checkout-button';
-import { FadeIn } from '@/components/anim';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -119,7 +119,7 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Product Image - sticky on desktop */}
-        <FadeIn>
+        <div>
           <div className="relative lg:sticky lg:top-24">
             <div className="overflow-hidden rounded-3xl border border-line/60 bg-content/5 aspect-[4/3] md:aspect-[3/4]">
               {imageUrl ? (
@@ -141,10 +141,10 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
               )}
             </div>
           </div>
-          </FadeIn>
+          </div>
 
           {/* Content */}
-          <FadeIn delay={0.08} className="flex flex-col gap-4">
+          <div>
             <div className="flex flex-wrap items-center gap-2">
               {categoryName && (
                 <span className="rounded-full bg-accent-soft px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-accent">
@@ -259,7 +259,7 @@ export default async function ProdukDetailPage({ params }: { params: Promise<{ i
                 </>
               )}
             </div>
-          </FadeIn>
+          </div>
         </div>
       </div>
   );

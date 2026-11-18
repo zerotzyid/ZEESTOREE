@@ -126,6 +126,39 @@ export const integrationsSettingsSchema = z.object({
   axmisuApiKey: shortText(200),
 });
 
+const provisionSchema = z.object({
+  panelId: z.string().trim().min(1).max(60),
+  eggId: z.number().int().min(1).max(999999),
+  memoryMb: z.number().int().min(16).max(1048576),
+  swapMb: z.number().int().min(0).max(1048576),
+  diskMb: z.number().int().min(16).max(1048576),
+  cpuPercent: z.number().int().min(0).max(100000),
+  ioWeight: z.number().int().min(10).max(1000),
+  dockerImage: z.string().trim().max(200).nullable(),
+  startup: z.string().trim().max(500).nullable(),
+  environment: z.record(z.string().max(80), z.string().max(300)),
+  allocationMode: z.enum(['auto', 'default']),
+  allocationId: z.number().int().min(1).max(999999).nullable(),
+  databases: z.number().int().min(0).max(100),
+  allocations: z.number().int().min(0).max(100),
+  backups: z.number().int().min(0).max(100),
+  durationDays: z.number().int().min(1).max(3650).default(30),
+});
+
+const panelTypeSchema = z.object({
+  id: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500),
+  price: z.number().int().min(0).max(1000000000),
+  durationDays: z.number().int().min(1).max(3650),
+  category: z.enum(['pterodactyl', 'custom']).default('pterodactyl'),
+  provision: provisionSchema.nullable(),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(9999),
+});
+
+export const panelTypesSettingsSchema = z.array(panelTypeSchema).max(20);
+
 export const limitsSettingsSchema = z.object({
   maxProductsPerUser: z.number().int().min(1).max(100),
 });
@@ -143,6 +176,7 @@ export const settingsPatchSchema = z
     systemTexts: systemTextsSettingsSchema.optional(),
     integrations: integrationsSettingsSchema.optional(),
     limits: limitsSettingsSchema.optional(),
+    panelTypes: panelTypesSettingsSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'Tidak ada bagian yang dikirim.' });
 
@@ -161,25 +195,6 @@ export const assetUploadSchema = z.object({
 
 /** Jenis produk — nilai mengikuti cakupan PRD (panel, produk digital, VPS trial, lainnya). */
 export const productKind = z.enum(['panel', 'digital', 'vps_trial', 'lainnya', 'reseller', 'nokos']);
-
-const provisionSchema = z.object({
-  panelId: z.string().trim().min(1).max(60),
-  eggId: z.number().int().min(1).max(999_999),
-  memoryMb: z.number().int().min(16).max(1_048_576),
-  swapMb: z.number().int().min(0).max(1_048_576),
-  diskMb: z.number().int().min(16).max(1_048_576),
-  cpuPercent: z.number().int().min(0).max(100_000),
-  ioWeight: z.number().int().min(10).max(1000),
-  dockerImage: z.string().trim().max(200).nullable(),
-  startup: z.string().trim().max(500).nullable(),
-  environment: z.record(z.string().max(80), z.string().max(300)),
-  allocationMode: z.enum(['auto', 'default']),
-  allocationId: z.number().int().min(1).max(999_999).nullable(),
-  databases: z.number().int().min(0).max(100),
-  allocations: z.number().int().min(0).max(100),
-  backups: z.number().int().min(0).max(100),
-  durationDays: z.number().int().min(1).max(3650).default(30),
-});
 
 const resellerSchema = z.object({
   productId: z.string().trim().min(1, 'ID produk reseller wajib diisi.').max(80),
