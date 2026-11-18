@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Save, Mail, Github, LockKeyhole, Plus, Trash2, Server, ShieldCheck, Trash2 as Trash2Icon } from 'lucide-react';
+import { Loader2, Save, Mail, Github, LockKeyhole, Plus, Trash2, Server, ShieldCheck, Box, HardDrive, Cpu, Database, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/components/settings-provider';
 import { AssetField } from '@/components/admin/asset-field';
@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { computeAccentVars } from '@/lib/accent';
-import type { Settings, PanelType } from '@/lib/settings-defaults';
+import type { Settings, PanelType, PanelCategory, PanelRamTier } from '@/lib/settings-defaults';
 
 type SectionKey = keyof Settings;
 
@@ -268,6 +268,225 @@ export function SettingsClient({ initial }: Props) {
     });
   };
 
+  // Panel Categories Management
+  const addPanelCategory = () => {
+    const newCategory = {
+      id: `cat-${Date.now()}`,
+      key: '',
+      name: '',
+      description: '',
+      icon: 'Server',
+      active: true,
+      sortOrder: (draft.panelCategories?.length ?? 0) + 1,
+      pterodactylPanelId: '',
+    };
+    setDraft((prev) => (prev ? { ...prev, panelCategories: [...(prev.panelCategories ?? []), newCategory] } : prev));
+  };
+
+  const removePanelCategory = (index: number) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newCategories = [...(prev.panelCategories ?? [])];
+      newCategories.splice(index, 1);
+      return { ...prev, panelCategories: newCategories };
+    });
+  };
+
+  const updatePanelCategory = (index: number, updatedCategory: Partial<PanelCategory>) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newCategories = [...(prev.panelCategories ?? [])];
+      newCategories[index] = { ...newCategories[index], ...updatedCategory };
+      return { ...prev, panelCategories: newCategories };
+    });
+  };
+
+  // Panel RAM Tiers Management
+  const addPanelRamTier = () => {
+    const firstCategory = draft.panelCategories?.[0]?.id || 'cat-pterodactyl';
+    const newTier = {
+      id: `tier-${Date.now()}`,
+      categoryId: firstCategory,
+      name: '',
+      description: '',
+      price: 0,
+      durationDays: 30,
+      sortOrder: (draft.panelRamTiers?.length ?? 0) + 1,
+      active: true,
+      provision: {
+        memoryMb: 1024,
+        swapMb: 128,
+        diskMb: 2048,
+        cpuPercent: 50,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto' as const,
+        allocationId: null,
+        databases: 1,
+        allocations: 1,
+        backups: 1,
+      },
+    };
+    setDraft((prev) => (prev ? { ...prev, panelRamTiers: [...(prev.panelRamTiers ?? []), newTier] } : prev));
+  };
+
+  const removePanelRamTier = (index: number) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newTiers = [...(prev.panelRamTiers ?? [])];
+      newTiers.splice(index, 1);
+      return { ...prev, panelRamTiers: newTiers };
+    });
+  };
+
+  const updatePanelRamTier = (index: number, updatedTier: Partial<PanelRamTier>) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newTiers = [...(prev.panelRamTiers ?? [])];
+      newTiers[index] = { ...newTiers[index], ...updatedTier };
+      return { ...prev, panelRamTiers: newTiers };
+    });
+  };
+
+  // Render function for panel categories (avoids JSX arrow function parsing issues)
+  const renderPanelCategory = (category: PanelCategory, index: number) => {
+    const parentCategory = category;
+    return (
+      <div key={category.id} className="rounded-2xl border border-line p-4">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+              {getLucideIcon(category.icon, { size: 16, className: "text-accent" })}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-content">Kategori #{index + 1}</p>
+              <p className="text-xs text-content-faint">Key: {category.key} · ID: {category.id}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={category.active}
+              onCheckedChange={(checked) => updatePanelCategory(index, { ...category, active: checked })}
+            />
+            <span className="text-xs text-content-muted">
+              {category.active ? 'Aktif' : 'Nonaktif'}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => removePanelCategory(index)}
+              className="text-red-500 hover:text-red-400"
+            >
+              <Trash2 aria-hidden size={14} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`category-${index}-id`}>ID</Label>
+            <Input
+              id={`category-${index}-id`}
+              value={category.id}
+              onChange={(e) => updatePanelCategory(index, { ...category, id: e.target.value })}
+              maxLength={60}
+              placeholder="Contoh: cat-pterodactyl"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`category-${index}-key`}>Key (Unik)</Label>
+            <Input
+              id={`category-${index}-key`}
+              value={category.key}
+              onChange={(e) => updatePanelCategory(index, { ...category, key: e.target.value })}
+              maxLength={60}
+              placeholder="Contoh: pterodactyl"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`category-${index}-name`}>Nama</Label>
+            <Input
+              id={`category-${index}-name`}
+              value={category.name}
+              onChange={(e) => updatePanelCategory(index, { ...category, name: e.target.value })}
+              maxLength={100}
+              placeholder="Contoh: Panel Pterodactyl"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`category-${index}-icon`}>Icon (Lucide)</Label>
+            <Input
+              id={`category-${index}-icon`}
+              value={category.icon}
+              onChange={(e) => updatePanelCategory(index, { ...category, icon: e.target.value })}
+              maxLength={50}
+              placeholder="Contoh: Server, Box, Cpu"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor={`category-${index}-desc`}>Deskripsi</Label>
+            <Textarea
+              id={`category-${index}-desc`}
+              value={category.description}
+              onChange={(e) => updatePanelCategory(index, { ...category, description: e.target.value })}
+              maxLength={500}
+              rows={2}
+              placeholder="Deskripsi untuk ditampilkan ke pengguna"
+            />
+          </div>
+          {category.key === 'pterodactyl' && (
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <Label htmlFor={`category-${index}-pterodactylPanelId`}>Panel Pterodactyl Tujuan (ID)</Label>
+              <Input
+                id={`category-${index}-pterodactylPanelId`}
+                value={category.pterodactylPanelId || ''}
+                onChange={(e) => updatePanelCategory(index, { ...category, pterodactylPanelId: e.target.value })}
+                maxLength={60}
+                placeholder="ID panel di Pterodactyl (opsional)"
+              />
+              <p className="text-xs text-content-faint">Gunakan panel ini untuk provisioning server otomatis.</p>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4 pt-4 border-t border-line/60">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Label htmlFor={`category-${index}-sort`}>Urutan</Label>
+              <Input
+                id={`category-${index}-sort`}
+                type="number"
+                inputMode="numeric"
+                value={String(category.sortOrder)}
+                onChange={(e) => updatePanelCategory(index, { ...category, sortOrder: Number(e.target.value) || 0 })}
+                min={0}
+                max={9999}
+                className="w-24"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper: Get Lucide icon component by name
+  const getLucideIcon = (name: string, props?: React.SVGProps<SVGSVGElement> & { size?: number }) => {
+    const icons: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+      Server,
+      Box,
+      HardDrive,
+      Cpu,
+      Database,
+      ExternalLink,
+    };
+    const Icon = icons[name] || Server;
+    const { size, ...restProps } = props || {};
+    return <Icon {...restProps} width={size} height={size} />;
+  };
+
   const loadNests = async (panelId: string) => {
     if (!panelId) return;
     setNestsLoading(true);
@@ -312,7 +531,9 @@ export function SettingsClient({ initial }: Props) {
           <TabsTrigger value="oauth">OAuth Login</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="limits">Batas Produk</TabsTrigger>
-          <TabsTrigger value="panelTypes">Jenis Panel</TabsTrigger>
+          <TabsTrigger value="panelCategories">Kategori Panel</TabsTrigger>
+          <TabsTrigger value="panelRamTiers">Tier RAM Panel</TabsTrigger>
+          <TabsTrigger value="panelTypes">Jenis Panel (Legacy)</TabsTrigger>
         </TabsList>
 
         {/* IDENTITAS */}
@@ -1142,7 +1363,321 @@ export function SettingsClient({ initial }: Props) {
           </div>
         </TabsContent>
 
-        {/* PANEL TYPES */}
+                {/* PANEL CATEGORIES */}
+        <TabsContent value="panelCategories">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="label-mono">Kategori Panel</p>
+                <p className="text-xs text-content-faint">
+                  Kelola kategori panel (misal: Pterodactyl, Custom). Setiap kategori bisa punya banyak tier RAM.
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => addPanelCategory()}>
+                <Plus aria-hidden size={14} />
+                Tambah Kategori
+              </Button>
+            </div>
+
+            {draft.panelCategories?.map((category, index) =>
+                renderPanelCategory(category, index)
+              )}
+
+            {draft.panelCategories?.length === 0 && (
+              <div className="text-center py-12">
+                <Box aria-hidden size={48} className="mx-auto mb-4 text-content-muted/30" />
+                <h3 className="text-lg font-semibold text-content">Belum ada kategori panel</h3>
+                <p className="mt-2 text-sm text-content-muted">Tambah kategori pertama untuk memulai.</p>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-line/60 flex justify-end">
+              <SaveButton section="panelCategories" saving={saving} onClick={(s) => void save(s)} />
+            </div>
+          </div>
+        </TabsContent>
+
+                {/* PANEL RAM TIERS */}
+        <TabsContent value="panelRamTiers">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="label-mono">Tier RAM Panel</p>
+                <p className="text-xs text-content-faint">
+                  Kelola tier spesifikasi (RAM, Disk, CPU) per kategori. Setiap tier = satu pilihan harga untuk user.
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => addPanelRamTier()}>
+                <Plus aria-hidden size={14} />
+                Tambah Tier RAM
+              </Button>
+            </div>
+
+            {draft.panelRamTiers?.map((tier, index) => {
+              const parentCategory = draft.panelCategories?.find((c) => c.id === tier.categoryId);
+              return (
+                <div key={tier.id} className="rounded-2xl border border-line p-4">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg flex items-center justify-center border border-line bg-content/5">
+                        <HardDrive aria-hidden size={16} className="text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-content">Tier RAM #{index + 1}</p>
+                        <p className="text-xs text-content-faint">
+                          Kategori: {parentCategory?.name ?? tier.categoryId} · ID: {tier.id}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={tier.active}
+                        onCheckedChange={(checked) => updatePanelRamTier(index, { ...tier, active: checked })}
+                      />
+                      <span className="text-xs text-content-muted">
+                        {tier.active ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removePanelRamTier(index)}
+                        className="text-red-500 hover:text-red-400"
+                      >
+                        <Trash2 aria-hidden size={14} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`tier-${index}-id`}>ID</Label>
+                      <Input
+                        id={`tier-${index}-id`}
+                        value={tier.id}
+                        onChange={(e) => updatePanelRamTier(index, { ...tier, id: e.target.value })}
+                        maxLength={60}
+                        placeholder="Contoh: tier-lite"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`tier-${index}-categoryId`}>Kategori</Label>
+                      <select
+                        id={`tier-${index}-categoryId`}
+                        value={tier.categoryId}
+                        onChange={(e) => updatePanelRamTier(index, { ...tier, categoryId: e.target.value })}
+                        className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
+                      >
+                        {draft.panelCategories?.map((c) => (
+                          <option key={c.id} value={c.id} className="bg-surface-raised text-content">
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`tier-${index}-name`}>Nama Tier</Label>
+                      <Input
+                        id={`tier-${index}-name`}
+                        value={tier.name}
+                        onChange={(e) => updatePanelRamTier(index, { ...tier, name: e.target.value })}
+                        maxLength={100}
+                        placeholder="Contoh: Lite, Standard, Elite"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`tier-${index}-price`}>Harga (Rp/bulan)</Label>
+                      <Input
+                        id={`tier-${index}-price`}
+                        type="number"
+                        inputMode="numeric"
+                        value={String(tier.price)}
+                        onChange={(e) => updatePanelRamTier(index, { ...tier, price: Number(e.target.value) || 0 })}
+                        min={0}
+                        max={1000000000}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`tier-${index}-duration`}>Durasi (hari)</Label>
+                      <Input
+                        id={`tier-${index}-duration`}
+                        type="number"
+                        inputMode="numeric"
+                        value={String(tier.durationDays)}
+                        onChange={(e) => updatePanelRamTier(index, { ...tier, durationDays: Number(e.target.value) || 30 })}
+                        min={1}
+                        max={3650}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <Label htmlFor={`tier-${index}-desc`}>Deskripsi</Label>
+                      <Textarea
+                        id={`tier-${index}-desc`}
+                        value={tier.description}
+                        onChange={(e) => updatePanelRamTier(index, { ...tier, description: e.target.value })}
+                        maxLength={500}
+                        rows={2}
+                        placeholder="Deskripsi tier untuk ditampilkan ke pengguna"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-3 rounded-xl border border-accent/30 bg-accent-soft/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-content">Spesifikasi Provisioning</p>
+                        <p className="text-xs text-content-faint">Spesifikasi server yang akan dibuat di Pterodactyl.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-memory`}>RAM (MB)</Label>
+                        <Input
+                          id={`tier-${index}-memory`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.memoryMb)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, memoryMb: Number(e.target.value) || 0 } })}
+                          min={16}
+                          max={1048576}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-swap`}>Swap (MB)</Label>
+                        <Input
+                          id={`tier-${index}-swap`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.swapMb)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, swapMb: Number(e.target.value) || 0 } })}
+                          min={0}
+                          max={1048576}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-disk`}>Disk (MB)</Label>
+                        <Input
+                          id={`tier-${index}-disk`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.diskMb)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, diskMb: Number(e.target.value) || 0 } })}
+                          min={16}
+                          max={1048576}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-cpu`}>CPU (%)</Label>
+                        <Input
+                          id={`tier-${index}-cpu`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.cpuPercent)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, cpuPercent: Number(e.target.value) || 0 } })}
+                          min={0}
+                          max={100000}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-io`}>IO Weight</Label>
+                        <Input
+                          id={`tier-${index}-io`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.ioWeight)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, ioWeight: Number(e.target.value) || 500 } })}
+                          min={10}
+                          max={1000}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-databases`}>Databases</Label>
+                        <Input
+                          id={`tier-${index}-databases`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.databases)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, databases: Number(e.target.value) || 0 } })}
+                          min={0}
+                          max={100}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-allocations`}>Allocations</Label>
+                        <Input
+                          id={`tier-${index}-allocations`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.allocations)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, allocations: Number(e.target.value) || 0 } })}
+                          min={0}
+                          max={100}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`tier-${index}-backups`}>Backups</Label>
+                        <Input
+                          id={`tier-${index}-backups`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.provision.backups)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, backups: Number(e.target.value) || 0 } })}
+                          min={0}
+                          max={100}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <Label htmlFor={`tier-${index}-allocMode`}>Mode Alokasi</Label>
+                        <select
+                          id={`tier-${index}-allocMode`}
+                          value={tier.provision.allocationMode}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, provision: { ...tier.provision, allocationMode: e.target.value as 'auto' | 'default' } })}
+                          className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
+                        >
+                          <option value="auto" className="bg-surface-raised text-content">Auto</option>
+                          <option value="default" className="bg-surface-raised text-content">Default</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-4 pt-4 border-t border-line/60">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor={`tier-${index}-sort`}>Urutan</Label>
+                        <Input
+                          id={`tier-${index}-sort`}
+                          type="number"
+                          inputMode="numeric"
+                          value={String(tier.sortOrder)}
+                          onChange={(e) => updatePanelRamTier(index, { ...tier, sortOrder: Number(e.target.value) || 0 })}
+                          min={0}
+                          max={9999}
+                          className="w-24"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {draft.panelRamTiers?.length === 0 && (
+              <div className="text-center py-12">
+                <HardDrive aria-hidden size={48} className="mx-auto mb-4 text-content-muted/30" />
+                <h3 className="text-lg font-semibold text-content">Belum ada tier RAM</h3>
+                <p className="mt-2 text-sm text-content-muted">Tambah tier RAM pertama untuk memulai.</p>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-line/60 flex justify-end">
+              <SaveButton section="panelRamTiers" saving={saving} onClick={(s) => void save(s)} />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* PANEL TYPES (LEGACY) */}{/* PANEL TYPES (LEGACY) */}
         <TabsContent value="panelTypes">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">

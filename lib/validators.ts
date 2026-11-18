@@ -159,6 +159,35 @@ const panelTypeSchema = z.object({
 
 export const panelTypesSettingsSchema = z.array(panelTypeSchema).max(20);
 
+// NEW: Panel Category Schema
+const panelCategorySchema = z.object({
+  id: z.string().trim().min(1).max(60),
+  key: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500),
+  icon: z.string().trim().max(50),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(9999),
+  pterodactylPanelId: z.string().trim().max(60).optional(),
+});
+
+export const panelCategoriesSettingsSchema = z.array(panelCategorySchema).max(20);
+
+// NEW: Panel RAM Tier Schema
+const panelRamTierSchema = z.object({
+  id: z.string().trim().min(1).max(60),
+  categoryId: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500),
+  price: z.number().int().min(0).max(1000000000),
+  durationDays: z.number().int().min(1).max(3650),
+  sortOrder: z.number().int().min(0).max(9999),
+  active: z.boolean(),
+  provision: provisionSchema,
+});
+
+export const panelRamTiersSettingsSchema = z.array(panelRamTierSchema).max(50);
+
 export const limitsSettingsSchema = z.object({
   maxProductsPerUser: z.number().int().min(1).max(100),
 });
@@ -177,6 +206,8 @@ export const settingsPatchSchema = z
     integrations: integrationsSettingsSchema.optional(),
     limits: limitsSettingsSchema.optional(),
     panelTypes: panelTypesSettingsSchema.optional(),
+    panelCategories: panelCategoriesSettingsSchema.optional(),
+    panelRamTiers: panelRamTiersSettingsSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'Tidak ada bagian yang dikirim.' });
 

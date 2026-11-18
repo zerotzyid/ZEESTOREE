@@ -7,6 +7,51 @@
 
 export type FaqItem = { id: string; q: string; a: string };
 
+/**
+ * Kategori Panel (misal: Pterodactyl, Custom)
+ */
+export type PanelCategory = {
+  id: string;
+  key: string; // 'pterodactyl' | 'custom' | custom key
+  name: string;
+  description: string;
+  icon: string; // lucide icon name
+  active: boolean;
+  sortOrder: number;
+  // Pterodactyl-specific settings
+  pterodactylPanelId?: string; // ID panel Pterodactyl untuk provisioning
+};
+
+/**
+ * Tier RAM dalam kategori (misal: 1GB, 2GB, 4GB)
+ */
+export type PanelRamTier = {
+  id: string;
+  categoryId: string;
+  name: string; // misal: "Lite", "Standard", "Elite"
+  description: string;
+  price: number; // per bulan
+  durationDays: number;
+  sortOrder: number;
+  active: boolean;
+  // Spesifikasi provisioning
+  provision: {
+    memoryMb: number;
+    swapMb: number;
+    diskMb: number;
+    cpuPercent: number;
+    ioWeight: number;
+    dockerImage: string | null;
+    startup: string | null;
+    environment: Record<string, string>;
+    allocationMode: 'auto' | 'default';
+    allocationId: number | null;
+    databases: number;
+    allocations: number;
+    backups: number;
+  };
+};
+
 export type PanelType = {
   id: string;
   name: string;
@@ -101,6 +146,10 @@ export type Settings = {
   limits: {
     maxProductsPerUser: number;
   };
+  // NEW: Panel Categories & RAM Tiers
+  panelCategories: PanelCategory[];
+  panelRamTiers: PanelRamTier[];
+  // Legacy: Panel Types (for backward compatibility)
   panelTypes: PanelType[];
   oauth: {
     enabled: boolean;
@@ -202,6 +251,106 @@ export const DEFAULT_SETTINGS: Settings = {
   limits: {
     maxProductsPerUser: 5,
   },
+  // NEW: Panel Categories & RAM Tiers
+  panelCategories: [
+    {
+      id: 'cat-pterodactyl',
+      key: 'pterodactyl',
+      name: 'Panel Pterodactyl',
+      description: 'Panel server game dengan provisioning otomatis ke Pterodactyl. Pilih RAM, lalu pilih jenis game (egg).',
+      icon: 'Server',
+      active: true,
+      sortOrder: 1,
+      pterodactylPanelId: '',
+    },
+    {
+      id: 'cat-custom',
+      key: 'custom',
+      name: 'Panel Custom',
+      description: 'Panel dengan konfigurasi manual atau panel lain non-Pterodactyl.',
+      icon: 'Box',
+      active: true,
+      sortOrder: 2,
+    },
+  ],
+  panelRamTiers: [
+    {
+      id: 'tier-lite',
+      categoryId: 'cat-pterodactyl',
+      name: 'Lite',
+      description: 'Hemat untuk server game ringan / development',
+      price: 35000,
+      durationDays: 30,
+      sortOrder: 1,
+      active: true,
+      provision: {
+        memoryMb: 1024,
+        swapMb: 128,
+        diskMb: 2048,
+        cpuPercent: 50,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto',
+        allocationId: null,
+        databases: 1,
+        allocations: 1,
+        backups: 1,
+      },
+    },
+    {
+      id: 'tier-standard',
+      categoryId: 'cat-pterodactyl',
+      name: 'Standard',
+      description: 'Standar untuk server game ringan hingga menengah',
+      price: 75000,
+      durationDays: 30,
+      sortOrder: 2,
+      active: true,
+      provision: {
+        memoryMb: 2048,
+        swapMb: 256,
+        diskMb: 5120,
+        cpuPercent: 100,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto',
+        allocationId: null,
+        databases: 3,
+        allocations: 3,
+        backups: 2,
+      },
+    },
+    {
+      id: 'tier-elite',
+      categoryId: 'cat-pterodactyl',
+      name: 'Elite',
+      description: 'Premium dengan spesifikasi tinggi untuk server game berat',
+      price: 150000,
+      durationDays: 30,
+      sortOrder: 3,
+      active: true,
+      provision: {
+        memoryMb: 4096,
+        swapMb: 512,
+        diskMb: 10240,
+        cpuPercent: 200,
+        ioWeight: 500,
+        dockerImage: null,
+        startup: null,
+        environment: {},
+        allocationMode: 'auto',
+        allocationId: null,
+        databases: 5,
+        allocations: 5,
+        backups: 3,
+      },
+    },
+  ],
+  // Legacy: Panel Types (kept for backward compatibility during migration)
   panelTypes: [
     {
       id: 'panel-elite',
