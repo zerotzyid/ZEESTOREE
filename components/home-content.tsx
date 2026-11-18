@@ -228,38 +228,22 @@ export function HomeContent() {
     void loadCatalog();
   }, []);
 
-  // Combine regular categories with panel tiers from settings
+  // Combine regular categories with panel sales tiers from settings
   const allCategories = useMemo(() => {
     if (!settings) return { regular: categories, panel: [] as any[] };
     
-    const panelTiers = settings.panelTiers?.filter((t) => t.active) ?? [];
-    const panelRamOptions = settings.panelRamOptions?.filter((r) => r.active) ?? [];
+    const panelTiers = settings.panelSales?.tiers?.filter((t) => t.active) ?? [];
     
-    // Create virtual categories for panel tiers (grouped by tier)
-    type PanelCategoryInfo = {
-      category: { id: string; name: string; description: string; icon: string; key: string };
-      tiers: typeof panelRamOptions;
-    };
-    
-    const panelCategoryMap = new Map<string, PanelCategoryInfo>();
-    
-    for (const panelTier of panelTiers) {
-      const ramOpts = panelRamOptions.filter((r) => r.tierId === panelTier.id);
-      if (ramOpts.length > 0) {
-        panelCategoryMap.set(panelTier.id, {
-          category: {
-            id: panelTier.id,
-            name: panelTier.name,
-            description: panelTier.description,
-            icon: panelTier.icon,
-            key: panelTier.key,
-          },
-          tiers: ramOpts,
-        });
-      }
-    }
-
-    return { regular: categories, panel: Array.from(panelCategoryMap.values()) };
+    return { regular: categories, panel: panelTiers.map(t => ({
+      category: {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        icon: 'Server', // Default icon
+        key: t.id,
+      },
+      tiers: [] // Not needed for display
+    })) };
   }, [categories, settings]);
 
   const filtered = useMemo(() => {

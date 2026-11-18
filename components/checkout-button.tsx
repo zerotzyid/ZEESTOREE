@@ -47,7 +47,7 @@ const cdnUrl = (path: string | null) => {
     : `https://api-cdnzero.vercel.app${path.startsWith('/') ? path : '/' + path}`;
 };
 
-export function CheckoutButton({ productId, kind }: { productId: string; kind: string }) {
+export function CheckoutButton({ productId, kind, tierId }: { productId: string; kind: string; tierId?: string }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -124,6 +124,7 @@ export function CheckoutButton({ productId, kind }: { productId: string; kind: s
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId,
+          tierId,
           paymentMethod,
           voucherCode: voucherCode.trim().toUpperCase() || undefined,
           ...(kind === 'reseller'

@@ -52,7 +52,7 @@ export async function POST(
       return Response.json({ error: 'OAuth login belum diaktifkan admin.' }, { status: 403 });
     }
 
-    const providerConfig = oauth.providers?.[provider];
+    const providerConfig = (oauth.providers as Record<string, { enabled: boolean }> | undefined)?.[provider];
     if (!providerConfig || !providerConfig.enabled) {
       return Response.json({ error: `Penyedia OAuth '${provider}' tidak diaktifkan.` }, { status: 403 });
     }

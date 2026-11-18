@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink, ArrowRight, Tag } from 'lucide-react';
+import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink, Tag, ChevronRight } from 'lucide-react';
 import { get } from '@/lib/rtdb';
 import { getSettings } from '@/lib/settings';
 import { getSession } from '@/lib/session';
-import { formatRupiah } from '@/lib/format';
 import { ProductImage } from '@/components/product-image';
 import { CheckoutButton } from '@/components/checkout-button';
 import { FadeIn } from '@/components/anim';
@@ -27,31 +26,22 @@ type ProductDoc = {
 
 type CategoryDoc = { name?: unknown };
 
-type PanelType = {
+type PanelSalesTier = {
   id: string;
+  panelId: string;
   name: string;
   description: string;
-  price: number;
-  durationDays: number;
-  provision: {
-    panelId: string;
-    eggId: number;
-    memoryMb: number;
-    swapMb: number;
-    diskMb: number;
-    cpuPercent: number;
-    ioWeight: number;
-    dockerImage: string | null;
-    startup: string | null;
-    environment: Record<string, string>;
-    allocationMode: 'auto' | 'default';
-    allocationId: number | null;
-    databases: number;
-    allocations: number;
-    backups: number;
-  } | null;
   active: boolean;
   sortOrder: number;
+  priceMultiplier: number;
+  maxPurchasePerUser: number;
+};
+
+type PanelSalesConfig = {
+  tiers: PanelSalesTier[];
+  ramOptions: number[];
+  cpuOptions: number[];
+  diskOptions: number[];
 };
 
 function contactHref(value: string): string | null {
@@ -59,12 +49,14 @@ function contactHref(value: string): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : null;
 }
 
-async function loadPanelType(panelId: string): Promise<PanelType | null> {
+async function loadPanelTier(tierId: string): Promise<PanelSalesTier | null> {
   try {
     const settings = await getSettings().catch(() => null);
     if (!settings) return null;
-    const panelTypes = settings.panelTypes?.filter((p) => p.active) ?? [];
-    return panelTypes.find((p) => p.id === panelId) ?? null;
+    const panelSales = settings.panelSales || { tiers: [], ramOptions: [], cpuOptions: [], diskOptions: [] };
+    const tier = panelSales.tiers.find((t) => t.id === tierId && t.active);
+    if (!tier) return null;
+    return tier;
   } catch {
     return null;
   }
@@ -90,46 +82,32 @@ async function loadProduct(id: string): Promise<{
 
 export async function generateMetadata({ params }: { params: Promise<{ panelId: string }> }) {
   const { panelId } = await params;
-  const panel = await loadPanelType(panelId);
-  const name = panel?.name ?? 'Panel Server';
+  const tier = await loadPanelTier(panelId);
+  const name = tier?.name ?? 'Panel Server';
   return { title: `${name} - Panel Server` };
 }
 
-function provisionValue(panel: PanelType, key: string, fallback = '—'): string {
-  if (!panel.provision) return fallback;
-  const val = (panel.provision as Record<string, unknown>)[key];
-  return val == null || val === '' ? fallback : String(val);
+function formatRupiah(value: number): string {
+  return new Intl.NumberFormat('id-ID').format(value);
 }
 
 export default async function PanelProductPage({ params }: { params: Promise<{ panelId: string }> }) {
   const { panelId } = await params;
-  const panel = await loadPanelType(panelId);
-  if (!panel) notFound();
+  const tier = await loadPanelTier(panelId);
+  if (!tier) notFound();
 
   const settings = await getSettings().catch(() => null);
   const session = await getSession().catch(() => null);
 
-  const name = panel.name;
-  const description = panel.description;
-  const price = panel.price;
-  const imageUrl = null;
-
-  const durationDays = panel.durationDays;
-  const expiresText = durationDays > 0 ? `Aktif selama ${durationDays} hari` : 'Aktif permanen';
+  const tierName = tier.name;
+  const tierDescription = tier.description;
+  const tierPriceMultiplier = tier.priceMultiplier;
 
   const helpHref = settings
     ? contactHref(settings.contact.whatsapp) ??
       contactHref(settings.contact.telegram) ??
       contactHref(settings.contact.email)
     : null;
-
-  const featureItems = panel.provision ? [
-    { icon: Server, label: 'Akses Panel Pterodactyl', desc: 'Kelola server Anda sendiri melalui panel kontrol profesional.' },
-    { icon: HardDrive, label: 'Penyimpanan', desc: `${provisionValue(panel, 'diskMb')} MB penyimpanan SSD.` },
-    { icon: Cpu, label: 'Prosesor', desc: `${provisionValue(panel, 'cpuPercent')}% alokasi CPU dedicated.` },
-    { icon: Database, label: 'Database & Backup', desc: `${provisionValue(panel, 'databases')} database dan ${provisionValue(panel, 'backups')} backup otomatis.` },
-    { icon: ShieldCheck, label: 'Lindung Otomatis', desc: `Server akan dihapus otomatis setelah ${expiresText.toLowerCase()} jika tidak diperpanjang.` },
-  ] : [];
 
   return (
     <div className="mx-auto px-4 py-8 sm:px-6 sm:py-12">
@@ -139,6 +117,7 @@ export default async function PanelProductPage({ params }: { params: Promise<{ p
       </Link>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Tier Image/Info */}
         <FadeIn>
           <div className="relative lg:sticky lg:top-24">
             <div className="overflow-hidden rounded-3xl border border-line/60 bg-content/5 aspect-[4/3] md:aspect-[3/4]">
@@ -146,7 +125,7 @@ export default async function PanelProductPage({ params }: { params: Promise<{ p
                 <Server aria-hidden size={80} className="text-accent/30" />
               </div>
               <span className="absolute left-3 top-3 rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
-                Rp{formatRupiah(panel.price)}/bln
+                Mulai Rp{formatRupiah(10000)}<span className="text-sm font-normal text-white">/bln</span>
               </span>
             </div>
           </div>
@@ -164,65 +143,41 @@ export default async function PanelProductPage({ params }: { params: Promise<{ p
           </div>
 
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl lg:text-4xl">{name}</h1>
-            {price !== null ? (
-              price === 0 ? (
-                <p className="text-3xl font-semibold text-emerald-500">Gratis</p>
-              ) : (
-                <p className="text-3xl font-semibold text-accent">{formatRupiah(price)}</p>
-              )
-            ) : (
-              <p className="text-sm text-content-muted">Hubungi kami untuk harga.</p>
-            )}
+            <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl lg:text-4xl">{tier.name}</h1>
+            <p className="text-3xl font-semibold text-accent">
+              Mulai dari Rp{formatRupiah(10000)}<span className="text-sm font-normal text-content-muted">/bln</span>
+            </p>
           </div>
 
-          {panel.description && (
+          {tier.description && (
             <div className="whitespace-pre-line rounded-2xl border border-line/60 bg-content/5 p-4 text-sm leading-relaxed text-content-muted">
-              {panel.description}
+              {tier.description}
             </div>
           )}
 
-          {panel.provision && (
-            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-line p-4">
-              <div className="flex items-center gap-2">
-                <Server aria-hidden size={16} className="text-accent" />
-                <p className="label-mono">Spesifikasi Panel</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
-                  <HardDrive aria-hidden size={16} className="text-accent" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-content">Penyimpanan</p>
-                    <p className="text-xs text-content-faint">{provisionValue(panel, 'diskMb')} MB penyimpanan SSD.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
-                  <Cpu aria-hidden size={16} className="text-accent" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-content">Prosesor</p>
-                    <p className="text-xs text-content-faint">{provisionValue(panel, 'cpuPercent')}% alokasi CPU dedicated.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
-                  <Database aria-hidden size={16} className="text-accent" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-content">Database & Backup</p>
-                    <p className="text-xs text-content-faint">{provisionValue(panel, 'databases')} database dan {provisionValue(panel, 'backups')} backup otomatis.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
-                  <ShieldCheck aria-hidden size={16} className="text-accent" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-content">Lindung Otomatis</p>
-                    <p className="text-xs text-content-faint">Server akan dihapus otomatis setelah {expiresText.toLowerCase()} jika tidak diperpanjang.</p>
-                  </div>
-                </div>
-              </div>
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-line p-4">
+            <div className="flex items-center gap-2">
+              <Server aria-hidden size={16} className="text-accent" />
+              <p className="label-mono">Pilih Spesifikasi</p>
             </div>
-          )}
+            <p className="text-sm text-content-muted">
+              Pilih spesifikasi RAM, CPU, dan Disk di halaman konfigurasi.
+            </p>
+            <Link
+              href={`/panel-beli/${tier.id}/configure`}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/20 transition-colors"
+            >
+              <ChevronRight aria-hidden size={16} />
+              Pilih Spesifikasi & Egg
+            </Link>
+          </div>
 
           <div className="mt-4 pt-4 border-t border-line/40">
-            <CheckoutButton productId={`panel-${panel.id}`} kind="panel" />
+            <CheckoutButton
+              productId={`panel-${tier.id}`}
+              kind="panel"
+              tierId={tier.id}
+            />
             <p className="mt-3 text-xs text-content-faint">
               Butuh bantuan?{' '}
               {helpHref ? (
@@ -239,3 +194,4 @@ export default async function PanelProductPage({ params }: { params: Promise<{ p
     </div>
   );
 }
+

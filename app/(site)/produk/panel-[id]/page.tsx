@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink, Tag } from 'lucide-react';
+import { ArrowLeft, Clock3, LogIn, UserPlus, Mail, Server, HardDrive, Cpu, Database, ShieldCheck, PackageOpen, ExternalLink, Tag, ChevronRight } from 'lucide-react';
 import { get } from '@/lib/rtdb';
 import { getSettings } from '@/lib/settings';
 import { getSession } from '@/lib/session';
-import { formatRupiah } from '@/lib/format';
 import { ProductImage } from '@/components/product-image';
 import { CheckoutButton } from '@/components/checkout-button';
 import { FadeIn } from '@/components/anim';
@@ -27,33 +26,28 @@ type ProductDoc = {
 
 type CategoryDoc = { name?: unknown };
 
-type PanelType = {
+type PanelSalesTier = {
   id: string;
+  panelId: string;
   name: string;
   description: string;
-  price: number;
-  durationDays: number;
-  provision: {
-    panelId: string;
-    eggId: number;
-    memoryMb: number;
-    swapMb: number;
-    diskMb: number;
-    cpuPercent: number;
-    ioWeight: number;
-    dockerImage: string | null;
-    startup: string | null;
-    environment: Record<string, string>;
-    allocationMode: 'auto' | 'default';
-    allocationId: number | null;
-    databases: number;
-    allocations: number;
-    backups: number;
-  } | null;
   active: boolean;
   sortOrder: number;
-  kind?: string;
-  image?: string;
+  priceMultiplier: number;
+  maxPurchasePerUser: number;
+};
+
+type PanelSalesConfig = {
+  tiers: PanelSalesTier[];
+  ramOptions: number[];
+  cpuOptions: number[];
+  diskOptions: number[];
+};
+
+type PanelTierForDisplay = PanelSalesTier & {
+  ramOptions: number[];
+  cpuOptions: number[];
+  diskOptions: number[];
 };
 
 function contactHref(value: string): string | null {
@@ -61,12 +55,19 @@ function contactHref(value: string): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : null;
 }
 
-async function loadPanelType(panelId: string): Promise<PanelType | null> {
+async function loadPanelTier(tierId: string): Promise<PanelTierForDisplay | null> {
   try {
     const settings = await getSettings().catch(() => null);
     if (!settings) return null;
-    const panelTypes = settings.panelTypes?.filter((p) => p.active) ?? [];
-    return panelTypes.find((p) => p.id === panelId) ?? null;
+    const panelSales = settings.panelSales || { tiers: [], ramOptions: [], cpuOptions: [], diskOptions: [] };
+    const tier = panelSales.tiers.find((t) => t.id === tierId && t.active);
+    if (!tier) return null;
+    return {
+      ...tier,
+      ramOptions: panelSales.ramOptions,
+      cpuOptions: panelSales.cpuOptions,
+      diskOptions: panelSales.diskOptions,
+    } as PanelTierForDisplay;
   } catch {
     return null;
   }
@@ -90,52 +91,38 @@ async function loadProduct(id: string): Promise<{
   }
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ panelId: string }> }) {
-  const { panelId } = await params;
-  const panel = await loadPanelType(panelId);
-  const name = panel?.name ?? 'Panel Server';
+export async function generateMetadata({ params }: { params: Promise<{ tierId: string }> }) {
+  const { tierId } = await params;
+  const tier = await loadPanelTier(tierId);
+  const name = tier?.name ?? 'Panel Server';
   return { title: `${name} - Panel Server` };
 }
 
-function provisionValue(panel: PanelType, key: string, fallback = '—'): string {
-  if (!panel.provision) return fallback;
-  const val = (panel.provision as Record<string, unknown>)[key];
-  return val == null || val === '' ? fallback : String(val);
+function formatRupiah(value: number): string {
+  return new Intl.NumberFormat('id-ID').format(value);
 }
 
-export default async function PanelProductPage({ params }: { params: Promise<{ panelId: string }> }) {
-  const { panelId } = await params;
-  const panel = await loadPanelType(panelId);
-  if (!panel) notFound();
+export default async function PanelProductPage({ params }: { params: Promise<{ tierId: string }> }) {
+  const { tierId } = await params;
+  const tier = await loadPanelTier(tierId);
+  if (!tier) notFound();
 
   const settings = await getSettings().catch(() => null);
   const session = await getSession().catch(() => null);
 
-  const isPanel = panel.kind === 'panel';
-  const isReseller = typeof panel.kind === 'string' && panel.kind === 'reseller';
-  const isNokos = typeof panel.kind === 'string' && panel.kind === 'nokos';
+  const tierName = tier.name;
+  const tierDescription = tier.description;
+  const tierPriceMultiplier = tier.priceMultiplier;
 
-  const name = typeof panel.name === 'string' && panel.name ? panel.name : panelId;
-  const description = typeof panel.description === 'string' && panel.description.trim() ? panel.description : null;
-  const price = typeof panel.price === 'number' ? panel.price : null;
-  const imageUrl = typeof panel.image === 'string' && panel.image ? `/api/asset/${panel.image}` : null;
-
-  const durationDays = panel.durationDays ?? 30;
-  const expiresText = durationDays > 0 ? `Aktif selama ${durationDays} hari` : 'Aktif permanen';
+  const ramOptions = tier.ramOptions || [];
+  const cpuOptions = tier.cpuOptions || [];
+  const diskOptions = tier.diskOptions || [];
 
   const helpHref = settings
     ? contactHref(settings.contact.whatsapp) ??
       contactHref(settings.contact.telegram) ??
       contactHref(settings.contact.email)
     : null;
-
-  const featureItems = panel.provision ? [
-    { icon: Server, label: 'Akses Panel Pterodactyl', desc: 'Kelola server Anda sendiri melalui panel kontrol profesional.' },
-    { icon: HardDrive, label: 'Penyimpanan', desc: `${provisionValue(panel, 'diskMb')} MB penyimpanan SSD.` },
-    { icon: Cpu, label: 'Prosesor', desc: `${provisionValue(panel, 'cpuPercent')}% alokasi CPU dedicated.` },
-    { icon: Database, label: 'Database & Backup', desc: `${provisionValue(panel, 'databases')} database dan ${provisionValue(panel, 'backups')} backup otomatis.` },
-    { icon: ShieldCheck, label: 'Lindung Otomatis', desc: `Server akan dihapus otomatis setelah ${expiresText.toLowerCase()} jika tidak diperpanjang.` },
-  ] : [];
 
   return (
     <div className="mx-auto px-4 py-8 sm:px-6 sm:py-12">
@@ -145,116 +132,111 @@ export default async function PanelProductPage({ params }: { params: Promise<{ p
       </Link>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Tier Image/Info */}
         <FadeIn>
           <div className="relative lg:sticky lg:top-24">
             <div className="overflow-hidden rounded-3xl border border-line/60 bg-content/5 aspect-[4/3] md:aspect-[3/4]">
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-accent/10 to-accent/5">
                 <Server aria-hidden size={80} className="text-accent/30" />
               </div>
-              {imageUrl ? (
-                <ProductImage src={imageUrl} alt={name} iconSize={48} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <PackageOpen aria-hidden size={64} className="text-content-muted/30" />
-                </div>
-              )}
+              <span className="absolute left-3 top-3 rounded-full bg-accent px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-white">
+                Mulai Rp{formatRupiah(10000)}<span className="text-sm font-normal text-white">/bln</span>
+              </span>
             </div>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.08} className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-accent-soft px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-accent">
+              Panel Server
+            </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] text-content-muted">
-              <Clock3 aria-hidden size={12} />
+              <Tag aria-hidden size={12} className="mr-1" />
               Aktif dipesan
             </span>
           </div>
 
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl">{name}</h1>
-            {price !== null ? (
-              price === 0 ? (
-                <p className="text-3xl font-semibold text-emerald-500">Gratis</p>
-              ) : (
-                <p className="text-3xl font-semibold text-accent">{formatRupiah(price)}</p>
-              )
-            ) : (
-              <p className="text-sm text-content-muted">Hubungi kami untuk harga.</p>
-            )}
+            <h1 className="text-2xl font-semibold leading-tight text-content sm:text-3xl lg:text-4xl">{tierName}</h1>
+            <p className="text-3xl font-semibold text-accent">
+              Mulai dari Rp{formatRupiah(10000)}<span className="text-sm font-normal text-content-muted">/bln</span>
+            </p>
           </div>
 
-          {description && (
+          {tierDescription && (
             <div className="whitespace-pre-line rounded-2xl border border-line/60 bg-content/5 p-4 text-sm leading-relaxed text-content-muted">
-              {description}
+              {tierDescription}
             </div>
           )}
 
-          {panel.provision && (
-            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-line p-4">
-              <div className="flex items-center gap-2">
-                <Server aria-hidden size={16} className="text-accent" />
-                <p className="label-mono">Spesifikasi Panel</p>
+          {/* Specs Selection Preview */}
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-line p-4">
+            <div className="flex items-center gap-2">
+              <Server aria-hidden size={16} className="text-accent" />
+              <p className="label-mono">Pilih Spesifikasi</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
+                <HardDrive aria-hidden size={16} className="text-accent" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-content">RAM</p>
+                  <p className="text-xs text-content-faint">Pilih: {ramOptions.map(r => r/1024 + 'GB').join(', ')}</p>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                {featureItems.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
-                    <f.icon aria-hidden size={16} className="text-accent" />
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-content">{f.label}</p>
-                      <p className="text-xs text-content-faint">{f.desc}</p>
-                    </div>
-                  </div>
-                ))}
-                <div className="col-span-2 flex items-center gap-2 p-2 rounded-xl border border-line/40 bg-emerald-500/10 text-emerald-500/90 text-sm">
-                  <ShieldCheck aria-hidden size={16} />
-                  <span className="font-medium">{expiresText}</span>
+              <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
+                <Cpu aria-hidden size={16} className="text-accent" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-content">CPU</p>
+                  <p className="text-xs text-content-faint">Pilih: {cpuOptions.map(c => c === 0 ? 'Unlimited' : c + '%').join(', ')}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-2 rounded-xl border border-line/40 bg-content/5">
+                <Database aria-hidden size={16} className="text-accent" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-content">Disk / Storage</p>
+                  <p className="text-xs text-content-faint">Pilih: {diskOptions.map(d => d/1024 + 'GB').join(', ')}</p>
                 </div>
               </div>
             </div>
-          )}
-          {isPanel && (
-            <div className="mt-4 rounded-2xl border border-line/60 bg-content/5 p-4">
-              <p className="text-xs text-content-muted">
-                {isReseller
-                  ? 'Pesanan ini dibayar via QRIS penyedia — bukan dari saldo situs.'
-                  : isNokos
-                    ? 'Saldo terpotong otomatis; nomor & OTP muncul di riwayat pesanan. Bila gagal, saldo kembali.'
-                    : 'Saldo akan terpotong otomatis. Bila pembuatan server panel gagal, uang dikembalikan ke saldo Anda.'}
-              </p>
-            </div>
-          )}
+          </div>
 
-          {!session ? (
-            <>
-              <p className="text-sm text-content-muted">Masuk atau buat akun untuk membeli produk ini.</p>
-              <div className="flex flex-wrap gap-3">
-                <Link href={`/login?next=/produk/${panelId}`} className="btn-accent inline-flex min-h-[46px] items-center gap-2 rounded-full px-6 text-sm font-medium">
-                  <LogIn aria-hidden size={16} />
-                  Masuk untuk membeli
-                </Link>
-                <Link href="/register" className="inline-flex min-h-[46px] items-center gap-2 rounded-full border border-line px-6 text-sm font-medium text-content transition-colors hover:bg-content/5">
-                  <UserPlus aria-hidden size={16} />
-                  Daftar
-                </Link>
-              </div>
-            </>
-          ) : (
-            <>
-              <CheckoutButton productId={`panel-${panelId}`} kind="panel" />
-              <p className="mt-3 text-xs text-content-faint">
-                Butuh bantuan?{' '}
-                {helpHref ? (
-                  <a href={helpHref} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                    Hubungi kami
-                  </a>
-                ) : (
-                  'gunakan menu bantuan di situs.'
-                )}
-              </p>
-            </>
-          )}
+          {/* Egg Selection Preview */}
+          <div className="mt-4">
+            <h3 className="font-medium text-content mb-3">Pilih Jenis Game (Egg)</h3>
+            <p className="text-sm text-content-muted mb-3">
+              Pilih jenis game/server setelah memilih spesifikasi di halaman konfigurasi.
+            </p>
+            <Link
+              href={`/panel-beli/${tier.id}/configure`}
+              className="inline-flex items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/20 transition-colors"
+            >
+              <ChevronRight aria-hidden size={16} />
+              Pilih Spesifikasi & Egg
+            </Link>
+          </div>
+
+          {/* Checkout Section */}
+          <div className="mt-4 pt-4 border-t border-line/40">
+            <CheckoutButton
+              productId={`panel-${tier.id}`}
+              kind="panel"
+              tierId={tier.id}
+            />
+            <p className="mt-3 text-xs text-content-faint">
+              Butuh bantuan?{' '}
+              {helpHref ? (
+                <a href={helpHref} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                  Hubungi kami
+                </a>
+              ) : (
+                'gunakan menu bantuan di situs.'
+              )}
+            </p>
+          </div>
         </FadeIn>
       </div>
     </div>
   );
 }
+

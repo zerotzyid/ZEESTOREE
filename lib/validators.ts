@@ -159,68 +159,37 @@ const panelTypeSchema = z.object({
 
 export const panelTypesSettingsSchema = z.array(panelTypeSchema).max(20);
 
-// NEW: Panel Tier Schema (Main Category - represents different Pterodactyl panels)
-const panelTierSchema = z.object({
+// NEW: Panel Sales Tier Schema
+const panelSalesTierSchema = z.object({
   id: z.string().trim().min(1).max(60),
-  key: z.string().trim().min(1).max(60),
+  panelId: z.string().trim().max(60).optional(),
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500),
-  icon: z.string().trim().max(50),
   active: z.boolean(),
   sortOrder: z.number().int().min(0).max(9999),
-  pterodactyl: z.object({
-    panelId: z.string().trim().max(60).optional(),
-    baseUrl: z.string().trim().url('URL tidak valid.').max(200),
-    apiKey: z.string().trim().max(200),
-  }),
-});
-
-export const panelTiersSettingsSchema = z.array(panelTierSchema).max(20);
-
-// NEW: Panel RAM Option Schema
-const panelRamOptionSchema = z.object({
-  id: z.string().trim().min(1).max(60),
-  tierId: z.string().trim().min(1).max(60),
-  name: z.string().trim().min(1).max(100),
-  memoryMb: z.number().int().min(0).max(1048576), // 0 = custom
-  price: z.number().int().min(0).max(1000000000),
-  durationDays: z.number().int().min(1).max(3650),
+  priceMultiplier: z.number().min(0.1).max(10).default(1.0),
   maxPurchasePerUser: z.number().int().min(0).max(100).default(0),
-  active: z.boolean(),
-  sortOrder: z.number().int().min(0).max(9999),
-  isCustom: z.boolean(),
-  customMaxMb: z.number().int().min(1024).max(10485760).optional(),
 });
 
-export const panelRamOptionsSettingsSchema = z.array(panelRamOptionSchema).max(100);
+export const panelSalesTiersSettingsSchema = z.array(panelSalesTierSchema).max(20);
 
-// NEW: Panel CPU Option Schema
-const panelCpuOptionSchema = z.object({
-  id: z.string().trim().min(1).max(60),
-  tierId: z.string().trim().min(1).max(60),
-  name: z.string().trim().min(1).max(100),
-  cpuPercent: z.number().int().min(0).max(100000), // 0 = unlimited
-  priceModifier: z.number().int().min(0).max(1000000000),
-  active: z.boolean(),
-  sortOrder: z.number().int().min(0).max(9999),
+const panelSalesConfigSchema = z.object({
+  tiers: z.array(z.object({
+    id: z.string().trim().min(1).max(60),
+    panelId: z.string().trim().max(60).optional(),
+    name: z.string().trim().min(1).max(100),
+    description: z.string().trim().max(500),
+    active: z.boolean(),
+    sortOrder: z.number().int().min(0).max(9999),
+    priceMultiplier: z.number().min(0.1).max(10).default(1.0),
+    maxPurchasePerUser: z.number().int().min(0).max(100).default(0),
+  })).max(20),
+  ramOptions: z.array(z.number().int().min(1024).max(10240)).max(20),
+  cpuOptions: z.array(z.number().int().min(10).max(1000)).max(20),
+  diskOptions: z.array(z.number().int().min(1024).max(102400)).max(20),
 });
 
-export const panelCpuOptionsSettingsSchema = z.array(panelCpuOptionSchema).max(50);
-
-// NEW: Panel Disk Option Schema
-const panelDiskOptionSchema = z.object({
-  id: z.string().trim().min(1).max(60),
-  tierId: z.string().trim().min(1).max(60),
-  name: z.string().trim().min(1).max(100),
-  diskMb: z.number().int().min(0).max(10485760), // 0 = custom
-  priceModifier: z.number().int().min(0).max(1000000000),
-  active: z.boolean(),
-  sortOrder: z.number().int().min(0).max(9999),
-  isCustom: z.boolean(),
-  customMaxMb: z.number().int().min(1024).max(104857600).optional(),
-});
-
-export const panelDiskOptionsSettingsSchema = z.array(panelDiskOptionSchema).max(100);
+export const panelSalesConfigSettingsSchema = panelSalesConfigSchema;
 
 export const limitsSettingsSchema = z.object({
   maxProductsPerUser: z.number().int().min(1).max(100),
@@ -240,10 +209,7 @@ export const settingsPatchSchema = z
     integrations: integrationsSettingsSchema.optional(),
     limits: limitsSettingsSchema.optional(),
     panelTypes: panelTypesSettingsSchema.optional(),
-    panelTiers: panelTiersSettingsSchema.optional(),
-    panelRamOptions: panelRamOptionsSettingsSchema.optional(),
-    panelCpuOptions: panelCpuOptionsSettingsSchema.optional(),
-    panelDiskOptions: panelDiskOptionsSettingsSchema.optional(),
+    panelSales: panelSalesConfigSettingsSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'Tidak ada bagian yang dikirim.' });
 
