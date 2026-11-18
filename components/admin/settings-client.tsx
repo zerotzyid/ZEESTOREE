@@ -1250,6 +1250,21 @@ export function SettingsClient({ initial }: Props) {
                       max={3650}
                     />
                   </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={`panel-${index}-category`}>Kategori</Label>
+                    <select
+                      id={`panel-${index}-category`}
+                      value={panelType.category || 'pterodactyl'}
+                      onChange={(e) => updatePanelType(index, { ...panelType, category: e.target.value as 'pterodactyl' | 'custom' })}
+                      className="min-h-[44px] rounded-xl border border-line bg-transparent px-3 text-sm text-content focus:border-accent focus:outline-none"
+                    >
+                      <option value="pterodactyl" className="bg-surface-raised text-content">Panel Pterodactyl</option>
+                      <option value="custom" className="bg-surface-raised text-content">Panel Custom</option>
+                    </select>
+                    <p className="text-xs text-content-faint">
+                      Pterodactyl: flow kategori → RAM → egg. Custom: produk biasa.
+                    </p>
+                  </div>
                 </div>
 
                 {panelType.provision ? (
